@@ -7,7 +7,6 @@ import {
   ShieldCheck,
   User,
   Github,
-  Sparkles,
 } from 'lucide-react';
 
 interface NativeHeaderProps {
@@ -75,16 +74,18 @@ export const NativeHeader: React.FC<NativeHeaderProps> = ({
 
         {/* User bar & Actions */}
         <div className="flex items-center gap-2">
-          {/* GitHub Host Action Pill */}
-          <button
-            id="headerGithubBtn"
-            onClick={onOpenGithub}
-            title="GitHub Hosting & PWA Settings"
-            className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 text-slate-200 transition-colors"
-          >
-            <Github className="w-3.5 h-3.5 text-orange-400" />
-            <span className="font-medium text-[11px]">GitHub Host</span>
-          </button>
+          {/* GitHub Host Action Pill (Admin only) */}
+          {isAdmin && (
+            <button
+              id="headerGithubBtn"
+              onClick={onOpenGithub}
+              title="GitHub Hosting & PWA Settings"
+              className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 text-slate-200 transition-colors cursor-pointer"
+            >
+              <Github className="w-3.5 h-3.5 text-orange-400" />
+              <span className="font-medium text-[11px]">GitHub Host</span>
+            </button>
+          )}
 
           {/* User Badge */}
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black/20 border border-white/10 text-xs">

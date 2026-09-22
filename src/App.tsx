@@ -52,7 +52,7 @@ export default function App() {
   // If role is associate, ensure they cannot stay on admin-only tabs
   useEffect(() => {
     if (session && session.role === 'associate') {
-      const adminTabs: TabKey[] = ['associates', 'clients', 'profit'];
+      const adminTabs: TabKey[] = ['associates', 'clients', 'profit', 'github'];
       if (adminTabs.includes(currentTab)) {
         setCurrentTab('dashboard');
       }
@@ -120,7 +120,7 @@ export default function App() {
               />
             )}
 
-            {currentTab === 'github' && (
+            {currentTab === 'github' && session.role === 'admin' && (
               <GitHubHostView db={db} onUpdateDb={handleUpdateDb} />
             )}
 

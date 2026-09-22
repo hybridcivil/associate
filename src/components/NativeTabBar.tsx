@@ -69,6 +69,7 @@ export const NativeTabBar: React.FC<NativeTabBarProps> = ({
       id: 'github',
       label: 'GitHub Host',
       icon: Github,
+      adminOnly: true,
     },
     {
       id: 'myprofile',

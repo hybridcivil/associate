@@ -15,6 +15,7 @@ import {
   AlertCircle,
   Github,
   UploadCloud,
+  UserCircle,
 } from 'lucide-react';
 
 interface DashboardViewProps {
@@ -126,12 +127,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <span>My Share Ledger</span>
                 </button>
                 <button
-                  id="dashGitHubAssociateBtn"
-                  onClick={() => onNavigate('github')}
+                  id="dashProfileAssociateBtn"
+                  onClick={() => onNavigate('myprofile')}
                   className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold border border-white/15 flex items-center gap-1.5 transition-all cursor-pointer"
                 >
-                  <Github className="w-3.5 h-3.5 text-orange-400" />
-                  <span>GitHub Storage</span>
+                  <UserCircle className="w-3.5 h-3.5 text-orange-400" />
+                  <span>My Profile</span>
                 </button>
               </>
             )}
