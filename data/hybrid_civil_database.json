@@ -1,0 +1,288 @@
+{
+  "admin": {
+    "username": "admin",
+    "password": "admin123"
+  },
+  "associates": [
+    {
+      "id": "assoc-1",
+      "name": "Engr. Tanvir Ahmed",
+      "phone": "01711000111",
+      "password": "assoc123",
+      "email": "tanvir.civil@hybridcivil.net",
+      "address": "Mirpur DOHS, Dhaka",
+      "status": "active"
+    },
+    {
+      "id": "assoc-2",
+      "name": "Engr. Nadia Sultana",
+      "phone": "01822000222",
+      "password": "assoc123",
+      "email": "nadia.struct@hybridcivil.net",
+      "address": "Uttara Sector 7, Dhaka",
+      "status": "active"
+    },
+    {
+      "id": "assoc-3",
+      "name": "Engr. Rakibul Hasan",
+      "phone": "01933000333",
+      "password": "assoc123",
+      "email": "rakibul@hybridcivil.net",
+      "address": "Agrabad, Chattogram",
+      "status": "active"
+    },
+    {
+      "id": "assoc-4",
+      "name": "Ar. Farhana Kabir",
+      "phone": "01644000444",
+      "password": "assoc123",
+      "email": "farhana.design@hybridcivil.net",
+      "address": "Banani, Dhaka",
+      "status": "active"
+    }
+  ],
+  "clients": [
+    {
+      "id": "client-1",
+      "name": "Al-Madina Real Estate Ltd.",
+      "phone": "01755123456",
+      "project": "G+9 Commercial & Residential Complex",
+      "price": 280000,
+      "advance": 140000,
+      "associateId": "assoc-1",
+      "date": "2026-03-10"
+    },
+    {
+      "id": "client-2",
+      "name": "Beximco Industrial Park",
+      "phone": "01866234567",
+      "project": "Steel Shed Foundation & Substructure Analysis",
+      "price": 450000,
+      "advance": 250000,
+      "associateId": "assoc-2",
+      "date": "2026-03-15"
+    },
+    {
+      "id": "client-3",
+      "name": "Dr. Rafiqul Islam Residence",
+      "phone": "01977345678",
+      "project": "Soil Investigation & G+4 Structural Design",
+      "price": 180000,
+      "advance": 90000,
+      "associateId": "assoc-4",
+      "date": "2026-03-18"
+    },
+    {
+      "id": "client-muczs9yo18tbrw",
+      "name": "abc",
+      "phone": "2888",
+      "project": "ffgh",
+      "price": 100,
+      "advance": 50,
+      "associateId": "assoc-1",
+      "date": "2026-09-22"
+    }
+  ],
+  "transactions": [
+    {
+      "id": "tx-1",
+      "date": "2026-03-12",
+      "clientId": "client-1",
+      "associateId": "assoc-1",
+      "shareType": "Selected associate 5%",
+      "amount": 4500,
+      "profit": 90000,
+      "kind": "referral"
+    },
+    {
+      "id": "tx-2",
+      "date": "2026-03-12",
+      "clientId": "client-1",
+      "associateId": "assoc-2",
+      "shareType": "Equal distribution 5% pool",
+      "amount": 1500,
+      "profit": 90000,
+      "kind": "equal",
+      "distributionId": "tx-1"
+    },
+    {
+      "id": "tx-3",
+      "date": "2026-03-12",
+      "clientId": "client-1",
+      "associateId": "assoc-3",
+      "shareType": "Equal distribution 5% pool",
+      "amount": 1500,
+      "profit": 90000,
+      "kind": "equal",
+      "distributionId": "tx-1"
+    },
+    {
+      "id": "tx-4",
+      "date": "2026-03-12",
+      "clientId": "client-1",
+      "associateId": "assoc-4",
+      "shareType": "Equal distribution 5% pool",
+      "amount": 1500,
+      "profit": 90000,
+      "kind": "equal",
+      "distributionId": "tx-1"
+    },
+    {
+      "id": "tx-5",
+      "date": "2026-03-16",
+      "clientId": "client-2",
+      "associateId": "assoc-2",
+      "shareType": "Selected associate 5%",
+      "amount": 7500,
+      "profit": 150000,
+      "kind": "referral"
+    },
+    {
+      "id": "tx-6",
+      "date": "2026-03-16",
+      "clientId": "client-2",
+      "associateId": "assoc-1",
+      "shareType": "Equal distribution 5% pool",
+      "amount": 2500,
+      "profit": 150000,
+      "kind": "equal",
+      "distributionId": "tx-5"
+    },
+    {
+      "id": "tx-7",
+      "date": "2026-03-16",
+      "clientId": "client-2",
+      "associateId": "assoc-3",
+      "shareType": "Equal distribution 5% pool",
+      "amount": 2500,
+      "profit": 150000,
+      "kind": "equal",
+      "distributionId": "tx-5"
+    },
+    {
+      "id": "tx-8",
+      "date": "2026-03-16",
+      "clientId": "client-2",
+      "associateId": "assoc-4",
+      "shareType": "Equal distribution 5% pool",
+      "amount": 2500,
+      "profit": 150000,
+      "kind": "equal",
+      "distributionId": "tx-5"
+    },
+    {
+      "id": "tx-muczw7hvdjlqf3",
+      "date": "2026-09-22",
+      "clientId": "client-muczs9yo18tbrw",
+      "associateId": "assoc-1",
+      "shareType": "Selected associate 5%",
+      "amount": 0.25,
+      "profit": 5,
+      "kind": "referral"
+    },
+    {
+      "id": "tx-muczw7hv4azayw",
+      "date": "2026-09-22",
+      "clientId": "client-muczs9yo18tbrw",
+      "associateId": "assoc-2",
+      "shareType": "Equal distribution 5% pool",
+      "amount": 0.08333333333333333,
+      "profit": 5,
+      "kind": "equal",
+      "distributionId": "tx-muczw7hvdjlqf3"
+    },
+    {
+      "id": "tx-muczw7hv4btwrs",
+      "date": "2026-09-22",
+      "clientId": "client-muczs9yo18tbrw",
+      "associateId": "assoc-3",
+      "shareType": "Equal distribution 5% pool",
+      "amount": 0.08333333333333333,
+      "profit": 5,
+      "kind": "equal",
+      "distributionId": "tx-muczw7hvdjlqf3"
+    },
+    {
+      "id": "tx-muczw7hv3564mp",
+      "date": "2026-09-22",
+      "clientId": "client-muczs9yo18tbrw",
+      "associateId": "assoc-4",
+      "shareType": "Equal distribution 5% pool",
+      "amount": 0.08333333333333333,
+      "profit": 5,
+      "kind": "equal",
+      "distributionId": "tx-muczw7hvdjlqf3"
+    },
+    {
+      "id": "tx-muczxlrhtugofp",
+      "date": "2026-09-22",
+      "clientId": "client-muczs9yo18tbrw",
+      "associateId": "assoc-1",
+      "shareType": "Selected associate 5%",
+      "amount": 2.5,
+      "profit": 50,
+      "kind": "referral"
+    },
+    {
+      "id": "tx-muczxlrhpmo398",
+      "date": "2026-09-22",
+      "clientId": "client-muczs9yo18tbrw",
+      "associateId": "assoc-2",
+      "shareType": "Equal distribution 5% pool",
+      "amount": 0.8333333333333334,
+      "profit": 50,
+      "kind": "equal",
+      "distributionId": "tx-muczxlrhtugofp"
+    },
+    {
+      "id": "tx-muczxlrhxvjpxz",
+      "date": "2026-09-22",
+      "clientId": "client-muczs9yo18tbrw",
+      "associateId": "assoc-3",
+      "shareType": "Equal distribution 5% pool",
+      "amount": 0.8333333333333334,
+      "profit": 50,
+      "kind": "equal",
+      "distributionId": "tx-muczxlrhtugofp"
+    },
+    {
+      "id": "tx-muczxlrheg25vs",
+      "date": "2026-09-22",
+      "clientId": "client-muczs9yo18tbrw",
+      "associateId": "assoc-4",
+      "shareType": "Equal distribution 5% pool",
+      "amount": 0.8333333333333334,
+      "profit": 50,
+      "kind": "equal",
+      "distributionId": "tx-muczxlrhtugofp"
+    }
+  ],
+  "payments": [
+    {
+      "id": "pay-1",
+      "associateId": "assoc-1",
+      "date": "2026-03-14",
+      "amount": 4500,
+      "parts": {
+        "tx-1": 4500
+      },
+      "allocations": [
+        "tx-1"
+      ]
+    },
+    {
+      "id": "pay-2",
+      "associateId": "assoc-2",
+      "date": "2026-03-18",
+      "amount": 5000,
+      "parts": {
+        "tx-2": 1500,
+        "tx-5": 3500
+      },
+      "allocations": [
+        "tx-2",
+        "tx-5"
+      ]
+    }
+  ]
+}
