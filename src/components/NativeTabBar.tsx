@@ -6,8 +6,6 @@ import {
   Briefcase,
   PieChart,
   Receipt,
-  Bot,
-  Image as ImageIcon,
   Github,
   UserCircle,
 } from 'lucide-react';
@@ -66,16 +64,6 @@ export const NativeTabBar: React.FC<NativeTabBarProps> = ({
       label: 'Transactions',
       icon: Receipt,
       badge: pendingDueCount > 0 ? pendingDueCount : undefined,
-    },
-    {
-      id: 'chat',
-      label: 'AI Advisor',
-      icon: Bot,
-    },
-    {
-      id: 'images',
-      label: 'AI Visuals',
-      icon: ImageIcon,
     },
     {
       id: 'github',

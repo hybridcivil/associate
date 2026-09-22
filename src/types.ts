@@ -47,23 +47,6 @@ export interface Session {
   phone?: string;
 }
 
-export interface ChatMessage {
-  id: string;
-  role: 'user' | 'model';
-  text: string;
-  timestamp: string;
-  model?: string;
-}
-
-export interface GeneratedImage {
-  id: string;
-  url: string;
-  prompt: string;
-  size: '1K' | '2K' | '4K';
-  aspectRatio: string;
-  timestamp: string;
-}
-
 export interface AppDatabase {
   admin: { username: string; password: string };
   associates: Associate[];
@@ -108,7 +91,5 @@ export type TabKey =
   | 'clients'
   | 'profit'
   | 'transactions'
-  | 'chat'
-  | 'images'
   | 'github'
   | 'myprofile';

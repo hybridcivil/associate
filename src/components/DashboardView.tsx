@@ -118,12 +118,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             ) : (
               <>
                 <button
-                  id="dashChatBtn"
-                  onClick={() => onNavigate('chat')}
+                  id="dashLedgerAssociateBtn"
+                  onClick={() => onNavigate('transactions')}
                   className="px-3.5 py-2 rounded-xl bg-[#f28c28] hover:bg-[#e07f20] text-white text-xs font-bold shadow-md shadow-orange-500/25 flex items-center gap-1.5 transition-all cursor-pointer"
                 >
-                  <Sparkles className="w-4 h-4" />
-                  <span>AI Engineering Advisor</span>
+                  <Receipt className="w-4 h-4" />
+                  <span>My Share Ledger</span>
                 </button>
                 <button
                   id="dashGitHubAssociateBtn"

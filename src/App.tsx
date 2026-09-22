@@ -14,8 +14,6 @@ import { AssociatesView } from './components/AssociatesView';
 import { ClientsView } from './components/ClientsView';
 import { ProfitEntryView } from './components/ProfitEntryView';
 import { TransactionsView } from './components/TransactionsView';
-import { AiChatView } from './components/AiChatView';
-import { ImageGenView } from './components/ImageGenView';
 import { GitHubHostView } from './components/GitHubHostView';
 import { MyProfileView } from './components/MyProfileView';
 import { LoginModal } from './components/LoginModal';
@@ -121,10 +119,6 @@ export default function App() {
                 onUpdateDb={handleUpdateDb}
               />
             )}
-
-            {currentTab === 'chat' && <AiChatView session={session} />}
-
-            {currentTab === 'images' && <ImageGenView />}
 
             {currentTab === 'github' && (
               <GitHubHostView db={db} onUpdateDb={handleUpdateDb} />

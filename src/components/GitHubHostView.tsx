@@ -955,7 +955,7 @@ git push -u origin ${config.branch || 'main'}
               <li><b>Output Directory:</b> <code className="font-mono bg-white px-1 rounded border">dist</code></li>
               <li><b>Serverless APIs:</b> <code className="font-mono bg-white px-1 rounded border">api/index.ts</code> handles <code className="font-mono text-blue-700">/api/*</code></li>
               <li><b>Client Routing:</b> SPA fallback to <code className="font-mono bg-white px-1 rounded border">/index.html</code></li>
-              <li><b>Environment:</b> Add <code className="font-mono text-amber-700">GEMINI_API_KEY</code> in Vercel Settings for AI</li>
+              <li><b>Zero API Keys:</b> Fully self-contained — ready to deploy and run instantly on Vercel</li>
             </ul>
           </div>
         </div>
