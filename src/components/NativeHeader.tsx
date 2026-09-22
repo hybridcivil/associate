@@ -1,9 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Session } from '../types';
 import {
   LogOut,
-  Wifi,
-  Battery,
   ShieldCheck,
   User,
   Github,
@@ -20,39 +18,12 @@ export const NativeHeader: React.FC<NativeHeaderProps> = ({
   onLogout,
   onOpenGithub,
 }) => {
-  const [time, setTime] = useState<string>('');
-
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      setTime(
-        now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      );
-    };
-    updateTime();
-    const interval = setInterval(updateTime, 30000);
-    return () => clearInterval(interval);
-  }, []);
-
   const isAdmin = session.role === 'admin';
 
   return (
-    <header className="sticky top-0 z-40 bg-[#10243a]/95 backdrop-blur-md text-white border-b border-white/10 select-none shadow-md">
-      {/* iOS style Simulated Status Bar */}
-      <div className="flex items-center justify-between px-4 pt-1.5 pb-0.5 text-[11px] text-slate-300 font-medium tracking-tight">
-        <span>{time || '09:41'}</span>
-        <div className="flex items-center gap-1.5 opacity-90">
-          <span className="text-[10px] tracking-wide text-emerald-400 flex items-center gap-1 font-semibold">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            Live Sync
-          </span>
-          <Wifi className="w-3.5 h-3.5" />
-          <Battery className="w-4 h-4" />
-        </div>
-      </div>
-
+    <header className="bg-[#10243a]/95 backdrop-blur-md text-white border-b border-white/10 select-none shadow-md">
       {/* Main Header Bar */}
-      <div className="max-w-7xl mx-auto px-4 py-2 flex items-center justify-between gap-3">
+      <div className="max-w-7xl mx-auto px-4 py-2.5 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#f28c28] to-[#ffaa44] flex items-center justify-center shadow-lg shadow-orange-500/20 text-[#10243a] font-black text-base flex-shrink-0">
             HC

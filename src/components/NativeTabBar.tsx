@@ -88,7 +88,7 @@ export const NativeTabBar: React.FC<NativeTabBarProps> = ({
   return (
     <>
       {/* Desktop / Tablet Top Segmented Navigation */}
-      <div className="hidden md:block bg-white border-b border-slate-200/80 px-4 py-2 sticky top-[73px] z-30 shadow-xs">
+      <div className="hidden md:block bg-white border-b border-slate-200/80 px-4 py-2 shadow-xs">
         <div className="max-w-7xl mx-auto flex items-center gap-1.5 overflow-x-auto py-0.5 no-scrollbar">
           {visibleTabs.map((tab) => {
             const Icon = tab.icon;

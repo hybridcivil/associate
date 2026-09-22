@@ -71,23 +71,26 @@ export default function App() {
       : 0;
 
   return (
-    <div className="min-h-screen bg-[#f3f6fa] text-slate-800 flex flex-col font-sans select-none antialiased">
+    <div className="min-h-screen bg-[#f3f6fa] text-slate-800 flex flex-col font-sans select-none antialiased text-[13px]">
       {session ? (
         <>
-          <NativeHeader
-            session={session}
-            onLogout={handleLogout}
-            onOpenGithub={() => setCurrentTab('github')}
-          />
+          {/* Stacked Sticky Top Bar (Header + Navigation) */}
+          <div className="sticky top-0 z-40">
+            <NativeHeader
+              session={session}
+              onLogout={handleLogout}
+              onOpenGithub={() => setCurrentTab('github')}
+            />
 
-          <NativeTabBar
-            currentTab={currentTab}
-            onSelectTab={setCurrentTab}
-            session={session}
-            pendingDueCount={pendingDueCount}
-          />
+            <NativeTabBar
+              currentTab={currentTab}
+              onSelectTab={setCurrentTab}
+              session={session}
+              pendingDueCount={pendingDueCount}
+            />
+          </div>
 
-          <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5">
+          <main className="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 pb-24 md:pb-8">
             {currentTab === 'dashboard' && (
               <DashboardView
                 db={db}

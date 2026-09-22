@@ -8,14 +8,24 @@
     --sar: env(safe-area-inset-right, 0px);
   }
 
+  html {
+    font-size: 13.5px;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  @media (min-width: 1024px) {
+    html {
+      font-size: 14px;
+    }
+  }
+
   html, body {
-    height: 100%;
+    min-height: 100%;
     margin: 0;
     padding: 0;
     -webkit-tap-highlight-color: transparent;
-    -webkit-touch-callout: none;
-    user-select: none;
-    overscroll-behavior-y: none;
+    font-size: 13.5px;
+    line-height: 1.45;
   }
 }
 
