@@ -6,6 +6,7 @@ import {
   Briefcase,
   PieChart,
   Receipt,
+  MessageSquare,
   Github,
   UserCircle,
 } from 'lucide-react';
@@ -16,6 +17,7 @@ interface NativeTabBarProps {
   onSelectTab: (tab: TabKey) => void;
   session: Session;
   pendingDueCount?: number;
+  unreadMessagesCount?: number;
 }
 
 export const NativeTabBar: React.FC<NativeTabBarProps> = ({
@@ -23,6 +25,7 @@ export const NativeTabBar: React.FC<NativeTabBarProps> = ({
   onSelectTab,
   session,
   pendingDueCount = 0,
+  unreadMessagesCount = 0,
 }) => {
   const isAdmin = session.role === 'admin';
 
@@ -64,6 +67,12 @@ export const NativeTabBar: React.FC<NativeTabBarProps> = ({
       label: 'Transactions',
       icon: Receipt,
       badge: pendingDueCount > 0 ? pendingDueCount : undefined,
+    },
+    {
+      id: 'messages',
+      label: 'Messages',
+      icon: MessageSquare,
+      badge: unreadMessagesCount > 0 ? unreadMessagesCount : undefined,
     },
     {
       id: 'github',

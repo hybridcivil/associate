@@ -47,12 +47,29 @@ export interface Session {
   phone?: string;
 }
 
+export interface Message {
+  id: string;
+  senderRole: 'associate' | 'admin';
+  senderId: string;
+  senderName: string;
+  receiverId: string;
+  receiverName?: string;
+  associateId: string; // Used to group conversation thread by associate
+  subject?: string;
+  content: string;
+  timestamp: string;
+  read: boolean;
+  priority?: 'normal' | 'urgent';
+  category?: 'general' | 'payment' | 'project' | 'site_visit' | 'technical';
+}
+
 export interface AppDatabase {
   admin: { username: string; password: string };
   associates: Associate[];
   clients: Client[];
   transactions: Transaction[];
   payments: Payment[];
+  messages: Message[];
 }
 
 export interface GitHubConfig {
@@ -91,5 +108,6 @@ export type TabKey =
   | 'clients'
   | 'profit'
   | 'transactions'
+  | 'messages'
   | 'github'
   | 'myprofile';

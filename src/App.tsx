@@ -16,6 +16,7 @@ import { ProfitEntryView } from './components/ProfitEntryView';
 import { TransactionsView } from './components/TransactionsView';
 import { GitHubHostView } from './components/GitHubHostView';
 import { MyProfileView } from './components/MyProfileView';
+import { MessagesView } from './components/MessagesView';
 import { LoginModal } from './components/LoginModal';
 
 export default function App() {
@@ -62,6 +63,16 @@ export default function App() {
         : 0
       : 0;
 
+  // Calculate unread messages count for badge
+  const unreadMessagesCount =
+    session?.role === 'admin'
+      ? (db.messages || []).filter((m) => m.senderRole === 'associate' && !m.read).length
+      : session?.id
+      ? (db.messages || []).filter(
+          (m) => m.associateId === session.id && m.senderRole === 'admin' && !m.read
+        ).length
+      : 0;
+
   return (
     <div className="min-h-screen bg-[#f3f6fa] text-slate-800 flex flex-col font-sans select-none antialiased text-[13px]">
       {session ? (
@@ -79,6 +90,7 @@ export default function App() {
               onSelectTab={setCurrentTab}
               session={session}
               pendingDueCount={pendingDueCount}
+              unreadMessagesCount={unreadMessagesCount}
             />
           </div>
 
@@ -109,6 +121,14 @@ export default function App() {
 
             {currentTab === 'transactions' && (
               <TransactionsView
+                db={db}
+                session={session}
+                onUpdateDb={handleUpdateDb}
+              />
+            )}
+
+            {currentTab === 'messages' && (
+              <MessagesView
                 db={db}
                 session={session}
                 onUpdateDb={handleUpdateDb}

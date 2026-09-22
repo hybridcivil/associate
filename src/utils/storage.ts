@@ -1,7 +1,19 @@
-import { Associate, Client, Transaction, Payment, Session, AppDatabase } from '../types';
+import {
+  Associate,
+  Client,
+  Transaction,
+  Payment,
+  Session,
+  AppDatabase,
+  Message,
+  GitHubConfig,
+  GitHubCommitLog,
+} from '../types';
 
 export const STORAGE_KEY = 'hybridCivilAssociateNetwork_v2';
 export const SESSION_KEY = 'hybridCivilSession_auth';
+export const GITHUB_CONFIG_KEY = 'hybridCivilGitHubConfig_v1';
+export const GITHUB_LOGS_KEY = 'hybridCivilGitHubLogs_v1';
 
 export type { AppDatabase };
 
@@ -194,6 +206,53 @@ const INITIAL_DATA: AppDatabase = {
       allocations: ['tx-2', 'tx-5'],
     },
   ],
+  messages: [
+    {
+      id: 'msg-1',
+      senderRole: 'associate',
+      senderId: 'assoc-1',
+      senderName: 'Engr. Tanvir Ahmed',
+      receiverId: 'admin',
+      receiverName: 'Administrator',
+      associateId: 'assoc-1',
+      subject: 'Inquiry on Bashundhara Project 5% Advance Commission',
+      content: 'Assalamu Alaikum Admin, I wanted to confirm if the 5% direct commission for the Bashundhara Commercial project advance has been processed for the current billing cycle.',
+      timestamp: '2026-03-16T10:30:00Z',
+      read: true,
+      priority: 'normal',
+      category: 'payment',
+    },
+    {
+      id: 'msg-2',
+      senderRole: 'admin',
+      senderId: 'admin',
+      senderName: 'Administrator',
+      receiverId: 'assoc-1',
+      receiverName: 'Engr. Tanvir Ahmed',
+      associateId: 'assoc-1',
+      subject: 'Re: Inquiry on Bashundhara Project 5% Advance Commission',
+      content: 'Wa Alaikum Assalam Tanvir. Yes, ৳4,500 has been credited to your transaction ledger and the partial payment voucher is issued. You can check the Transactions tab.',
+      timestamp: '2026-03-16T11:45:00Z',
+      read: true,
+      priority: 'normal',
+      category: 'payment',
+    },
+    {
+      id: 'msg-3',
+      senderRole: 'associate',
+      senderId: 'assoc-2',
+      senderName: 'Engr. Nadia Sultana',
+      receiverId: 'admin',
+      receiverName: 'Administrator',
+      associateId: 'assoc-2',
+      subject: 'Structural Detailing Sheet Approval for Mirpur Site',
+      content: 'Dear Admin, the revised structural detailing sheets with BNBC-2020 seismic provisions for Mirpur site have been finalized. Please let me know once approved so we can issue to site engineer.',
+      timestamp: '2026-03-18T09:15:00Z',
+      read: false,
+      priority: 'urgent',
+      category: 'technical',
+    },
+  ],
 };
 
 export function loadDatabase(): AppDatabase {
@@ -202,6 +261,9 @@ export function loadDatabase(): AppDatabase {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && Array.isArray(parsed.associates)) {
+        if (!Array.isArray(parsed.messages)) {
+          parsed.messages = INITIAL_DATA.messages || [];
+        }
         return parsed;
       }
     }
@@ -256,18 +318,13 @@ export function calculateAssociateTotals(
   };
 }
 
-export const GITHUB_CONFIG_KEY = 'hybridCivilGitHubConfig_v1';
-export const GITHUB_LOGS_KEY = 'hybridCivilGitHubLogs_v1';
-
-import { GitHubConfig, GitHubCommitLog } from '../types';
-
 export const DEFAULT_GITHUB_CONFIG: GitHubConfig = {
   owner: 'engrkalilinux',
   repo: 'hybrid-civil-associate-network',
   branch: 'main',
   token: '',
   filePath: 'data/hybrid_civil_database.json',
-  autoSync: false,
+  autoSync: true,
 };
 
 export function loadGitHubConfig(): GitHubConfig {
@@ -307,6 +364,71 @@ export function saveGitHubLogs(logs: GitHubCommitLog[]) {
   try {
     localStorage.setItem(GITHUB_LOGS_KEY, JSON.stringify(logs.slice(0, 30)));
   } catch (e) {}
+}
+
+/**
+ * Auto-sync application database to GitHub repository.
+ * Invoked on critical actions like associate password updates, payments, and messaging.
+ */
+export async function syncDatabaseToGitHub(
+  db: AppDatabase,
+  commitMessage: string
+): Promise<{ success: boolean; commitSha?: string; commitUrl?: string; message?: string; error?: string }> {
+  try {
+    const config = loadGitHubConfig();
+    if (!config || !config.owner || !config.repo) {
+      return { success: false, message: 'GitHub repository not configured in GitHub Host settings.' };
+    }
+
+    if (config.autoSync === false) {
+      return { success: false, message: 'GitHub Auto-Sync is paused in repository settings.' };
+    }
+
+    const targetPath = config.filePath || 'data/hybrid_civil_database.json';
+    const res = await fetch('/api/github/push', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        owner: config.owner.trim(),
+        repo: config.repo.trim(),
+        branch: config.branch.trim() || 'main',
+        path: targetPath,
+        content: JSON.stringify(db, null, 2),
+        message: commitMessage || `Auto-sync Hybrid Civil Network state`,
+        token: config.token ? config.token.trim() : '',
+      }),
+    });
+
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      return { success: false, error: data.error || 'Failed to push to GitHub' };
+    }
+
+    const newLog: GitHubCommitLog = {
+      id: 'log-' + Date.now(),
+      sha: data.commitSha || 'latest',
+      message: commitMessage,
+      action: 'update',
+      filePath: targetPath,
+      date: new Date().toISOString(),
+      status: 'success',
+      htmlUrl: data.commitUrl,
+      author: config.owner,
+    };
+
+    const existingLogs = loadGitHubLogs();
+    saveGitHubLogs([newLog, ...existingLogs]);
+
+    return {
+      success: true,
+      commitSha: data.commitSha || 'latest',
+      commitUrl: data.commitUrl,
+      message: data.message || `Successfully pushed update to ${config.owner}/${config.repo}`,
+    };
+  } catch (err: any) {
+    console.error('syncDatabaseToGitHub error:', err);
+    return { success: false, error: err.message || 'Auto-sync failed' };
+  }
 }
 
 // Generate formatted Markdown overview for GitHub repository
