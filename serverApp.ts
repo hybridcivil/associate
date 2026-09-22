@@ -1,5 +1,7 @@
 import express, { Express, Router } from "express";
 import dotenv from "dotenv";
+import fs from "fs";
+import path from "path";
 
 dotenv.config();
 
@@ -112,6 +114,17 @@ export function createApp(): Express {
 
       const cleanPath = filePath.replace(/^\/+/, "");
       const commitMessage = message || `Update ${cleanPath} via Hybrid Civil Network`;
+
+      // Persist to local disk to keep local files in sync with repository
+      try {
+        const fullLocalPath = path.resolve(process.cwd(), cleanPath);
+        if (fullLocalPath.startsWith(process.cwd())) {
+          await fs.promises.mkdir(path.dirname(fullLocalPath), { recursive: true });
+          await fs.promises.writeFile(fullLocalPath, content, "utf-8");
+        }
+      } catch (localWriteErr) {
+        console.error("Local file sync write error:", localWriteErr);
+      }
 
       if (!token || !token.trim()) {
         const simSha = "sim-" + Math.random().toString(16).substring(2, 10);

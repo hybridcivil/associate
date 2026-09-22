@@ -293,5 +293,52 @@
         "tx-5"
       ]
     }
+  ],
+  "messages": [
+    {
+      "id": "msg-1",
+      "senderRole": "associate",
+      "senderId": "assoc-1",
+      "senderName": "Engr. Tanvir Ahmed",
+      "receiverId": "admin",
+      "receiverName": "Administrator",
+      "associateId": "assoc-1",
+      "subject": "Inquiry on Bashundhara Project 5% Advance Commission",
+      "content": "Assalamu Alaikum Admin, I wanted to confirm if the 5% direct commission for the Bashundhara Commercial project advance has been processed for the current billing cycle.",
+      "timestamp": "2026-03-16T10:30:00Z",
+      "read": true,
+      "priority": "normal",
+      "category": "payment"
+    },
+    {
+      "id": "msg-2",
+      "senderRole": "admin",
+      "senderId": "admin",
+      "senderName": "Administrator",
+      "receiverId": "assoc-1",
+      "receiverName": "Engr. Tanvir Ahmed",
+      "associateId": "assoc-1",
+      "subject": "Re: Inquiry on Bashundhara Project 5% Advance Commission",
+      "content": "Wa Alaikum Assalam Tanvir. Yes, ৳4,500 has been credited to your transaction ledger and the partial payment voucher is issued. You can check the Transactions tab.",
+      "timestamp": "2026-03-16T11:45:00Z",
+      "read": true,
+      "priority": "normal",
+      "category": "payment"
+    },
+    {
+      "id": "msg-3",
+      "senderRole": "associate",
+      "senderId": "assoc-2",
+      "senderName": "Engr. Nadia Sultana",
+      "receiverId": "admin",
+      "receiverName": "Administrator",
+      "associateId": "assoc-2",
+      "subject": "Structural Detailing Sheet Approval for Mirpur Site",
+      "content": "Dear Admin, the revised structural detailing sheets with BNBC-2020 seismic provisions for Mirpur site have been finalized. Please let me know once approved so we can issue to site engineer.",
+      "timestamp": "2026-03-18T09:15:00Z",
+      "read": false,
+      "priority": "urgent",
+      "category": "technical"
+    }
   ]
 }

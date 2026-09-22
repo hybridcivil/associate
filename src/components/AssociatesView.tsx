@@ -5,6 +5,8 @@ import {
   saveDatabase,
   calculateAssociateTotals,
   formatMoney,
+  syncDatabaseToGitHub,
+  loadGitHubConfig,
 } from '../utils/storage';
 import {
   Users,
@@ -20,6 +22,7 @@ import {
   MapPin,
   X,
   AlertCircle,
+  Github,
 } from 'lucide-react';
 
 interface AssociatesViewProps {
@@ -92,9 +95,19 @@ export const AssociatesView: React.FC<AssociatesViewProps> = ({
     saveDatabase(updatedDb);
     onUpdateDb(updatedDb);
     showNotice(`Associate "${assoc.name}" was removed.`, 'success');
+
+    // Auto-update to GitHub repository
+    syncDatabaseToGitHub(
+      updatedDb,
+      `Associate removed: ${assoc.name} (${assoc.phone})`
+    ).then((res) => {
+      if (res.success) {
+        showNotice(`Associate "${assoc.name}" removed & auto-synced to GitHub (${res.commitSha})!`, 'success');
+      }
+    }).catch(() => {});
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!name.trim() || !phone.trim()) {
@@ -120,13 +133,16 @@ export const AssociatesView: React.FC<AssociatesViewProps> = ({
     }
 
     let updatedAssociates = [...db.associates];
+    const isNew = !editingId;
+    const targetName = name.trim();
+    const targetPhone = phone.trim();
 
     if (editingId) {
       const old = db.associates.find((a) => a.id === editingId);
       const updated: Associate = {
         id: editingId,
-        name: name.trim(),
-        phone: phone.trim(),
+        name: targetName,
+        phone: targetPhone,
         password: password.trim() ? password.trim() : old?.password || 'assoc123',
         email: email.trim(),
         address: address.trim(),
@@ -135,12 +151,12 @@ export const AssociatesView: React.FC<AssociatesViewProps> = ({
       updatedAssociates = updatedAssociates.map((a) =>
         a.id === editingId ? updated : a
       );
-      showNotice(`Associate "${name.trim()}" successfully updated.`, 'success');
+      showNotice(`Associate "${targetName}" successfully updated.`, 'success');
     } else {
       const newAssoc: Associate = {
         id: 'assoc-' + generateId(),
-        name: name.trim(),
-        phone: phone.trim(),
+        name: targetName,
+        phone: targetPhone,
         password: password.trim(),
         email: email.trim(),
         address: address.trim(),
@@ -148,7 +164,7 @@ export const AssociatesView: React.FC<AssociatesViewProps> = ({
       };
       updatedAssociates.push(newAssoc);
       showNotice(
-        `Associate "${name.trim()}" registered. Login with phone: ${phone.trim()}`,
+        `Associate "${targetName}" registered. Login with phone: ${targetPhone}`,
         'success'
       );
     }
@@ -160,6 +176,26 @@ export const AssociatesView: React.FC<AssociatesViewProps> = ({
     saveDatabase(updatedDb);
     onUpdateDb(updatedDb);
     resetForm();
+
+    // Auto-update to GitHub repository
+    try {
+      const ghResult = await syncDatabaseToGitHub(
+        updatedDb,
+        isNew
+          ? `Add new associate: ${targetName} (${targetPhone})`
+          : `Update associate: ${targetName} (${targetPhone})`
+      );
+      if (ghResult.success) {
+        showNotice(
+          isNew
+            ? `Associate "${targetName}" registered & auto-synced to GitHub (${ghResult.commitSha})!`
+            : `Associate "${targetName}" updated & auto-synced to GitHub (${ghResult.commitSha})!`,
+          'success'
+        );
+      }
+    } catch {
+      // Benign fallback
+    }
   };
 
   const filteredAssociates = db.associates.filter((a) => {

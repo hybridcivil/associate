@@ -272,26 +272,40 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
     setNewSubject('');
     setIsUrgent(false);
 
-    showNotice(
-      isAdmin
-        ? `Reply dispatched to ${activeAssociate?.name || 'Associate'}.`
-        : 'Message delivered to Administrator.',
-      'success'
-    );
-
     // Auto-sync to GitHub repository
     try {
-      syncDatabaseToGitHub(
+      const ghResult = await syncDatabaseToGitHub(
         updatedDb,
         `Message: ${isAdmin ? 'Admin' : session.name} -> ${
           isAdmin ? activeAssociate?.name : 'Admin'
-        }`
+        } [${newMsg.subject || 'Thread'}]`
       );
-    } catch {
-      // Benign background sync
-    }
 
-    setIsSending(false);
+      if (ghResult.success) {
+        showNotice(
+          isAdmin
+            ? `Reply delivered & auto-synced to GitHub (${ghResult.commitSha})!`
+            : `Message sent to Admin & auto-synced to GitHub (${ghResult.commitSha})!`,
+          'success'
+        );
+      } else {
+        showNotice(
+          isAdmin
+            ? `Reply dispatched to ${activeAssociate?.name || 'Associate'}.`
+            : 'Message delivered to Administrator.',
+          'success'
+        );
+      }
+    } catch {
+      showNotice(
+        isAdmin
+          ? `Reply dispatched to ${activeAssociate?.name || 'Associate'}.`
+          : 'Message delivered to Administrator.',
+        'success'
+      );
+    } finally {
+      setIsSending(false);
+    }
   };
 
   // Delete message (Admin only)
@@ -304,6 +318,16 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
     saveDatabase(updatedDb);
     onUpdateDb(updatedDb);
     showNotice('Message removed from thread.', 'success');
+
+    // Auto-update to GitHub repository
+    syncDatabaseToGitHub(
+      updatedDb,
+      `Delete message ${msgId} by Administrator`
+    ).then((res) => {
+      if (res.success) {
+        showNotice(`Message removed & auto-synced to GitHub (${res.commitSha})!`, 'success');
+      }
+    }).catch(() => {});
   };
 
   // Admin: Associates thread list with unread counter and search filter
