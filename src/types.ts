@@ -1,0 +1,84 @@
+export interface Associate {
+  id: string;
+  name: string;
+  phone: string;
+  password?: string;
+  email?: string;
+  address?: string;
+  status: 'active' | 'inactive';
+}
+
+export interface Client {
+  id: string;
+  name: string;
+  phone: string;
+  project: string;
+  price: number;
+  advance: number;
+  associateId?: string;
+  date: string;
+}
+
+export interface Transaction {
+  id: string;
+  date: string;
+  clientId: string;
+  associateId: string;
+  shareType: string;
+  amount: number;
+  profit: number;
+  kind: 'referral' | 'equal' | 'held';
+  distributionId?: string;
+}
+
+export interface Payment {
+  id: string;
+  associateId: string;
+  date: string;
+  amount: number;
+  parts?: Record<string, number>;
+  allocations?: string[];
+}
+
+export interface Session {
+  role: 'admin' | 'associate';
+  id?: string;
+  name: string;
+  phone?: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'model';
+  text: string;
+  timestamp: string;
+  model?: string;
+}
+
+export interface GeneratedImage {
+  id: string;
+  url: string;
+  prompt: string;
+  size: '1K' | '2K' | '4K';
+  aspectRatio: string;
+  timestamp: string;
+}
+
+export interface AppDatabase {
+  admin: { username: string; password: string };
+  associates: Associate[];
+  clients: Client[];
+  transactions: Transaction[];
+  payments: Payment[];
+}
+
+export type TabKey =
+  | 'dashboard'
+  | 'associates'
+  | 'clients'
+  | 'profit'
+  | 'transactions'
+  | 'chat'
+  | 'images'
+  | 'github'
+  | 'myprofile';

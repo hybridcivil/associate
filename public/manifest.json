@@ -1,0 +1,17 @@
+{
+  "name": "Hybrid Civil Associate Network",
+  "short_name": "Hybrid Civil",
+  "description": "Native-styled civil engineering associate network, profit distribution, and AI tools.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#10243a",
+  "theme_color": "#10243a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Hybrid Civil Associate Network",
+  "description": "Native-styled civil engineering associate network, client tracking, automated profit distribution, and AI civil engineering assistant.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
