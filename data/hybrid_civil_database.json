@@ -44,7 +44,7 @@
       "id": "assoc-mud4mz7mj22up8",
       "name": "xyz",
       "phone": "2207",
-      "password": "2207",
+      "password": "2208",
       "email": "ffg@gg.com",
       "address": "hhhj",
       "status": "active"
@@ -336,9 +336,37 @@
       "subject": "Structural Detailing Sheet Approval for Mirpur Site",
       "content": "Dear Admin, the revised structural detailing sheets with BNBC-2020 seismic provisions for Mirpur site have been finalized. Please let me know once approved so we can issue to site engineer.",
       "timestamp": "2026-03-18T09:15:00Z",
-      "read": false,
+      "read": true,
       "priority": "urgent",
       "category": "technical"
+    },
+    {
+      "id": "msg-mud501rbotcxke",
+      "senderRole": "admin",
+      "senderId": "admin",
+      "senderName": "Administrator",
+      "receiverId": "assoc-mud4mz7mj22up8",
+      "receiverName": "xyz",
+      "associateId": "assoc-mud4mz7mj22up8",
+      "content": "hi",
+      "timestamp": "2026-09-22T20:39:00.839Z",
+      "read": true,
+      "priority": "normal",
+      "category": "general"
+    },
+    {
+      "id": "msg-mud5qe5tdh59ar",
+      "senderRole": "associate",
+      "senderId": "assoc-mud4mz7mj22up8",
+      "senderName": "xyz",
+      "receiverId": "admin",
+      "receiverName": "Administrator",
+      "associateId": "assoc-mud4mz7mj22up8",
+      "content": "need payment",
+      "timestamp": "2026-09-22T20:59:29.969Z",
+      "read": true,
+      "priority": "normal",
+      "category": "payment"
     }
   ]
 }
