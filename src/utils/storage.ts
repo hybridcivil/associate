@@ -1,7 +1,7 @@
 import { Associate, Client, Transaction, Payment, Session, AppDatabase } from '../types';
 
 export const STORAGE_KEY = 'hybridCivilAssociateNetwork_v2';
-export const SESSION_KEY = 'hybridCivilSession';
+export const SESSION_KEY = 'hybridCivilSession_auth';
 
 export type { AppDatabase };
 

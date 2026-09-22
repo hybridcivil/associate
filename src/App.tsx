@@ -20,15 +20,7 @@ import { LoginModal } from './components/LoginModal';
 
 export default function App() {
   const [db, setDb] = useState<AppDatabase>(() => loadDatabase());
-  const [session, setSession] = useState<Session | null>(() => {
-    const saved = loadSession();
-    if (saved) return saved;
-    // Default to active Admin session for instant interactive preview
-    return {
-      role: 'admin',
-      name: 'Administrator',
-    };
-  });
+  const [session, setSession] = useState<Session | null>(() => loadSession());
 
   const [currentTab, setCurrentTab] = useState<TabKey>('dashboard');
 
