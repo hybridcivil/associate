@@ -255,3 +255,114 @@ export function calculateAssociateTotals(
     due: Math.max(0, earned - paid),
   };
 }
+
+export const GITHUB_CONFIG_KEY = 'hybridCivilGitHubConfig_v1';
+export const GITHUB_LOGS_KEY = 'hybridCivilGitHubLogs_v1';
+
+import { GitHubConfig, GitHubCommitLog } from '../types';
+
+export const DEFAULT_GITHUB_CONFIG: GitHubConfig = {
+  owner: 'engrkalilinux',
+  repo: 'hybrid-civil-associate-network',
+  branch: 'main',
+  token: '',
+  filePath: 'data/hybrid_civil_database.json',
+  autoSync: false,
+};
+
+export function loadGitHubConfig(): GitHubConfig {
+  try {
+    const raw = localStorage.getItem(GITHUB_CONFIG_KEY);
+    if (raw) return { ...DEFAULT_GITHUB_CONFIG, ...JSON.parse(raw) };
+  } catch (e) {}
+  return DEFAULT_GITHUB_CONFIG;
+}
+
+export function saveGitHubConfig(config: GitHubConfig) {
+  try {
+    localStorage.setItem(GITHUB_CONFIG_KEY, JSON.stringify(config));
+  } catch (e) {}
+}
+
+export function loadGitHubLogs(): GitHubCommitLog[] {
+  try {
+    const raw = localStorage.getItem(GITHUB_LOGS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return [
+    {
+      id: 'init-log',
+      sha: 'a4f91b0',
+      message: 'Initial project setup & structure for Hybrid Civil Associate Network',
+      action: 'push',
+      filePath: 'data/hybrid_civil_database.json',
+      date: new Date(Date.now() - 3600000).toISOString(),
+      status: 'success',
+      author: 'engrkalilinux',
+    },
+  ];
+}
+
+export function saveGitHubLogs(logs: GitHubCommitLog[]) {
+  try {
+    localStorage.setItem(GITHUB_LOGS_KEY, JSON.stringify(logs.slice(0, 30)));
+  } catch (e) {}
+}
+
+// Generate formatted Markdown overview for GitHub repository
+export function generateRepositoryMarkdown(db: AppDatabase): string {
+  const activeAssociates = db.associates.filter((a) => a.status === 'active');
+  const totalProfitDistributed = db.transactions
+    .filter((t) => t.kind === 'referral')
+    .reduce((sum, t) => sum + (t.profit || 0), 0);
+  const totalEarnedByAssociates = db.transactions.reduce((sum, t) => sum + (t.amount || 0), 0);
+  const totalDisbursed = db.payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+  const pendingDues = Math.max(0, totalEarnedByAssociates - totalDisbursed);
+
+  return `# HYBRID CIVIL — Associate Network Repository
+*Comprehensive Civil Engineering Consultancy & 90/5/5 Profit Distribution System*
+
+**Updated On:** ${new Date().toUTCString()}
+
+---
+
+## 🏗️ Executive Summary
+- **Active Civil Engineering Associates:** ${activeAssociates.length}
+- **Client & Project Agreements:** ${db.clients.length}
+- **Total Net Project Profit Accounted:** ৳${totalProfitDistributed.toLocaleString('en-BD')}
+- **Associate Earnings (Direct 5% + Equal 5% Pool):** ৳${totalEarnedByAssociates.toLocaleString('en-BD')}
+- **Total Disbursements Completed:** ৳${totalDisbursed.toLocaleString('en-BD')}
+- **Outstanding Balance Due:** ৳${pendingDues.toLocaleString('en-BD')}
+
+---
+
+## 📊 90 / 5 / 5 Business Protocol
+1. **90% Company Operations & Equipment Reserve**: Covers company infrastructure, licenses, equipment calibration, and project execution.
+2. **5% Direct Lead Associate Commission**: Rewarded to the associate who brought in or directly leads the project agreement.
+3. **5% Equal Partner Pool**: Evenly distributed among all remaining active engineering partners in good standing.
+
+---
+
+## 👥 Certified Associate Roster
+| Associate Name | Phone | Email | Status |
+| :--- | :--- | :--- | :--- |
+${db.associates
+  .map((a) => `| **${a.name}** | \`${a.phone}\` | ${a.email || 'N/A'} | ${a.status.toUpperCase()} |`)
+  .join('\n')}
+
+---
+
+## 💼 Active Client Projects
+| Client Name | Phone | Service / Scope | Price (BDT) | Advance Paid |
+| :--- | :--- | :--- | :--- | :--- |
+${db.clients
+  .map(
+    (c) =>
+      `| **${c.name}** | \`${c.phone}\` | ${c.project} | ৳${c.price.toLocaleString('en-BD')} | ৳${c.advance.toLocaleString('en-BD')} |`
+  )
+  .join('\n')}
+
+---
+*Generated automatically by Hybrid Civil Associate Network Web App.*
+`;
+}

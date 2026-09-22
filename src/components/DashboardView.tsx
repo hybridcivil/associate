@@ -13,6 +13,8 @@ import {
   PieChart,
   CheckCircle2,
   AlertCircle,
+  Github,
+  UploadCloud,
 } from 'lucide-react';
 
 interface DashboardViewProps {
@@ -104,16 +106,34 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <Briefcase className="w-3.5 h-3.5" />
                   <span>+ Client</span>
                 </button>
+                <button
+                  id="dashGitHubBtn"
+                  onClick={() => onNavigate('github')}
+                  className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold border border-white/15 flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <UploadCloud className="w-3.5 h-3.5 text-orange-400" />
+                  <span>Save to GitHub</span>
+                </button>
               </>
             ) : (
-              <button
-                id="dashChatBtn"
-                onClick={() => onNavigate('chat')}
-                className="px-3.5 py-2 rounded-xl bg-[#f28c28] hover:bg-[#e07f20] text-white text-xs font-bold shadow-md shadow-orange-500/25 flex items-center gap-1.5 transition-all cursor-pointer"
-              >
-                <Sparkles className="w-4 h-4" />
-                <span>AI Engineering Advisor</span>
-              </button>
+              <>
+                <button
+                  id="dashChatBtn"
+                  onClick={() => onNavigate('chat')}
+                  className="px-3.5 py-2 rounded-xl bg-[#f28c28] hover:bg-[#e07f20] text-white text-xs font-bold shadow-md shadow-orange-500/25 flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>AI Engineering Advisor</span>
+                </button>
+                <button
+                  id="dashGitHubAssociateBtn"
+                  onClick={() => onNavigate('github')}
+                  className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold border border-white/15 flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <Github className="w-3.5 h-3.5 text-orange-400" />
+                  <span>GitHub Storage</span>
+                </button>
+              </>
             )}
           </div>
         </div>

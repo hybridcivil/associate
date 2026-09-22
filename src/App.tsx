@@ -126,7 +126,9 @@ export default function App() {
 
             {currentTab === 'images' && <ImageGenView />}
 
-            {currentTab === 'github' && <GitHubHostView db={db} />}
+            {currentTab === 'github' && (
+              <GitHubHostView db={db} onUpdateDb={handleUpdateDb} />
+            )}
 
             {currentTab === 'myprofile' && session.role === 'associate' && (
               <MyProfileView

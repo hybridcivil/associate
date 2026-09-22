@@ -72,6 +72,36 @@ export interface AppDatabase {
   payments: Payment[];
 }
 
+export interface GitHubConfig {
+  owner: string;
+  repo: string;
+  branch: string;
+  token: string;
+  filePath: string;
+  autoSync: boolean;
+}
+
+export interface GitHubCommitLog {
+  id: string;
+  sha: string;
+  message: string;
+  action: 'push' | 'update' | 'delete' | 'pull';
+  filePath: string;
+  date: string;
+  status: 'success' | 'failed';
+  htmlUrl?: string;
+  author?: string;
+}
+
+export interface GitHubRepoFile {
+  name: string;
+  path: string;
+  sha: string;
+  size: number;
+  type: string;
+  download_url?: string;
+}
+
 export type TabKey =
   | 'dashboard'
   | 'associates'
