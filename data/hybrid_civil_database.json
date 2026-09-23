@@ -48,6 +48,15 @@
       "email": "ffg@gg.com",
       "address": "Dhaka, Bangladesh",
       "status": "active"
+    },
+    {
+      "id": "assoc-muefynvqwvwlkk",
+      "name": "adf",
+      "phone": "1234",
+      "password": "1234",
+      "email": "vhhh@g.com",
+      "address": "gh",
+      "status": "active"
     }
   ],
   "clients": [
@@ -286,6 +295,20 @@
       "associateId": "assoc-mud4mz7mj22up8",
       "content": "hi",
       "timestamp": "2026-09-23T09:39:04.838Z",
+      "read": false,
+      "priority": "normal",
+      "category": "general"
+    },
+    {
+      "id": "msg-mudy2c9p1u02r8",
+      "senderRole": "admin",
+      "senderId": "admin",
+      "senderName": "Administrator",
+      "receiverId": "assoc-mud4mz7mj22up8",
+      "receiverName": "xyz",
+      "associateId": "assoc-mud4mz7mj22up8",
+      "content": "hi",
+      "timestamp": "2026-09-23T10:12:36.637Z",
       "read": false,
       "priority": "normal",
       "category": "general"
