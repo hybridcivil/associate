@@ -258,7 +258,7 @@ ${clients
   // POST /database/save - Authoritative save to server repository and push to GitHub with smart merging
   router.post("/database/save", async (req, res) => {
     try {
-      const { data, message, owner = "engrkalilinux", repo = "hybrid-civil-associate-network", branch = "main", token } = req.body;
+      const { data, message, owner = "hybridcivil", repo = "associate", branch = "main", token } = req.body;
       if (!data || typeof data !== "object") {
         return res.status(400).json({ error: "Database data payload is required." });
       }
@@ -719,7 +719,7 @@ ${clients
             {
               sha: "7a9b1c2",
               message: "Initial commit of Hybrid Civil Associate Network data",
-              author: owner || "engrkalilinux",
+              author: owner || "hybridcivil",
               date: new Date().toISOString(),
               html_url: `https://github.com/${owner}/${repo}`,
             },
@@ -744,7 +744,7 @@ ${clients
               {
                 sha: "7a9b1c2",
                 message: "Repository data state (local fallback mode)",
-                author: owner || "engrkalilinux",
+                author: owner || "hybridcivil",
                 date: new Date().toISOString(),
                 html_url: `https://github.com/${owner}/${repo}`,
               },

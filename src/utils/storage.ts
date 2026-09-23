@@ -508,8 +508,8 @@ export async function saveDatabase(data: AppDatabase, commitMessage?: string): P
       body: JSON.stringify({
         data,
         message: commitMessage || `Update database state [${new Date().toLocaleTimeString()}]`,
-        owner: config?.owner || 'engrkalilinux',
-        repo: config?.repo || 'hybrid-civil-associate-network',
+        owner: config?.owner || 'hybridcivil',
+        repo: config?.repo || 'associate',
         branch: config?.branch || 'main',
         token: config?.token || '',
       }),
@@ -527,7 +527,7 @@ export async function saveDatabase(data: AppDatabase, commitMessage?: string): P
           date: new Date().toISOString(),
           status: 'success',
           htmlUrl: json.github.commitUrl,
-          author: config?.owner || 'engrkalilinux',
+          author: config?.owner || 'hybridcivil',
         };
         const existing = loadGitHubLogs();
         saveGitHubLogs([newLog, ...existing]);
@@ -587,8 +587,8 @@ export function calculateAssociateTotals(
 }
 
 export const DEFAULT_GITHUB_CONFIG: GitHubConfig = {
-  owner: 'engrkalilinux',
-  repo: 'hybrid-civil-associate-network',
+  owner: 'hybridcivil',
+  repo: 'associate',
   branch: 'main',
   token: '',
   filePath: 'data/hybrid_civil_database.json',
@@ -598,7 +598,16 @@ export const DEFAULT_GITHUB_CONFIG: GitHubConfig = {
 export function loadGitHubConfig(): GitHubConfig {
   try {
     const raw = localStorage.getItem(GITHUB_CONFIG_KEY);
-    if (raw) return { ...DEFAULT_GITHUB_CONFIG, ...JSON.parse(raw) };
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      // Migrate old placeholder default to correct repo if needed
+      if (!parsed.owner || parsed.owner === 'engrkalilinux' || parsed.repo === 'hybrid-civil-associate-network') {
+        parsed.owner = 'hybridcivil';
+        parsed.repo = 'associate';
+        saveGitHubConfig(parsed);
+      }
+      return { ...DEFAULT_GITHUB_CONFIG, ...parsed };
+    }
   } catch (e) {}
   return DEFAULT_GITHUB_CONFIG;
 }
@@ -623,7 +632,7 @@ export function loadGitHubLogs(): GitHubCommitLog[] {
       filePath: 'data/hybrid_civil_database.json',
       date: new Date(Date.now() - 3600000).toISOString(),
       status: 'success',
-      author: 'engrkalilinux',
+      author: 'hybridcivil',
     },
   ];
 }

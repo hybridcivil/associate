@@ -1069,7 +1069,7 @@ git push -u origin ${config.branch || 'main'}
                   required
                   value={config.owner}
                   onChange={(e) => setConfig({ ...config, owner: e.target.value })}
-                  placeholder="e.g. engrkalilinux"
+                  placeholder="e.g. hybridcivil"
                   className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500/30"
                 />
               </div>
@@ -1083,7 +1083,7 @@ git push -u origin ${config.branch || 'main'}
                   required
                   value={config.repo}
                   onChange={(e) => setConfig({ ...config, repo: e.target.value })}
-                  placeholder="e.g. hybrid-civil-associate-network"
+                  placeholder="e.g. associate"
                   className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500/30"
                 />
               </div>
