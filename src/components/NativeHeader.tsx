@@ -13,20 +13,23 @@ interface NativeHeaderProps {
   session: Session;
   onLogout: () => void;
   onOpenGithub: () => void;
-  isSyncing?: boolean;
+  syncAction?: 'idle' | 'pulling' | 'pushing';
   onSyncDatabase?: () => void;
   syncSource?: string;
+  lastSyncTime?: string;
 }
 
 export const NativeHeader: React.FC<NativeHeaderProps> = ({
   session,
   onLogout,
   onOpenGithub,
-  isSyncing = false,
+  syncAction = 'idle',
   onSyncDatabase,
   syncSource = 'GitHub',
+  lastSyncTime = 'Active',
 }) => {
   const isAdmin = session.role === 'admin';
+  const isBusy = syncAction !== 'idle';
 
   return (
     <header className="bg-[#10243a]/95 backdrop-blur-md text-white border-b border-white/10 select-none shadow-md">
@@ -53,25 +56,33 @@ export const NativeHeader: React.FC<NativeHeaderProps> = ({
 
         {/* User bar & Actions */}
         <div className="flex items-center gap-2">
-          {/* GitHub Cloud Storage Sync Pill */}
+          {/* GitHub Auto Pull / Push Status Pill */}
           <button
             id="headerSyncBtn"
             onClick={onSyncDatabase}
-            disabled={isSyncing}
-            title={`Primary storage: GitHub (${syncSource}). Click to fetch latest data directly from repository.`}
+            disabled={isBusy}
+            title={`Real-Time Auto-Pull & Auto-Push with ${syncSource}. Click to manually check & pull now.`}
             className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg border transition-all cursor-pointer ${
-              isSyncing
-                ? 'bg-amber-500/20 border-amber-400/30 text-amber-300 animate-pulse'
+              syncAction === 'pushing'
+                ? 'bg-amber-500/20 border-amber-400/40 text-amber-300 animate-pulse'
+                : syncAction === 'pulling'
+                ? 'bg-cyan-500/20 border-cyan-400/40 text-cyan-300 animate-pulse'
                 : 'bg-emerald-500/15 hover:bg-emerald-500/25 border-emerald-400/30 text-emerald-300'
             }`}
           >
-            {isSyncing ? (
+            {syncAction === 'pushing' ? (
               <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400" />
+            ) : syncAction === 'pulling' ? (
+              <RefreshCw className="w-3.5 h-3.5 animate-spin text-cyan-400" />
             ) : (
               <Cloud className="w-3.5 h-3.5 text-emerald-400" />
             )}
             <span className="font-semibold text-[11px] hidden sm:inline">
-              {isSyncing ? 'Syncing GitHub...' : 'GitHub Cloud'}
+              {syncAction === 'pushing'
+                ? 'Auto-Pushing...'
+                : syncAction === 'pulling'
+                ? 'Auto-Pulling...'
+                : `GitHub Auto-Sync (${lastSyncTime})`}
             </span>
           </button>
 

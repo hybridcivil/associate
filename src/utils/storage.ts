@@ -355,7 +355,12 @@ export async function fetchAuthoritativeDatabase(): Promise<{
  * Saves database directly to GitHub and server repository.
  * Also keeps an offline backup in localStorage.
  */
-export function saveDatabase(data: AppDatabase, commitMessage?: string) {
+export async function saveDatabase(data: AppDatabase, commitMessage?: string): Promise<{
+  success: boolean;
+  commitSha?: string;
+  commitUrl?: string;
+  message?: string;
+}> {
   // 1. Instant local cache update so UI is immediately updated
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -364,40 +369,54 @@ export function saveDatabase(data: AppDatabase, commitMessage?: string) {
   }
 
   // 2. Authoritative save to GitHub & server repository
-  const config = loadGitHubConfig();
-  fetch('/api/database/save', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      data,
-      message: commitMessage || `Update database state [${new Date().toLocaleTimeString()}]`,
-      owner: config?.owner || 'engrkalilinux',
-      repo: config?.repo || 'hybrid-civil-associate-network',
-      branch: config?.branch || 'main',
-      token: config?.token || '',
-    }),
-  })
-    .then((r) => r.json())
-    .then((res) => {
-      if (res.success && res.github?.commitSha) {
+  try {
+    const config = loadGitHubConfig();
+    const res = await fetch('/api/database/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        data,
+        message: commitMessage || `Update database state [${new Date().toLocaleTimeString()}]`,
+        owner: config?.owner || 'engrkalilinux',
+        repo: config?.repo || 'hybrid-civil-associate-network',
+        branch: config?.branch || 'main',
+        token: config?.token || '',
+      }),
+    });
+
+    if (res.ok) {
+      const json = await res.json();
+      if (json.success && json.github?.commitSha) {
         const newLog: GitHubCommitLog = {
           id: 'log-' + Date.now(),
-          sha: res.github.commitSha,
+          sha: json.github.commitSha,
           message: commitMessage || 'Auto-sync database to GitHub repository',
           action: 'update',
           filePath: 'data/hybrid_civil_database.json',
           date: new Date().toISOString(),
           status: 'success',
-          htmlUrl: res.github.commitUrl,
+          htmlUrl: json.github.commitUrl,
           author: config?.owner || 'engrkalilinux',
         };
         const existing = loadGitHubLogs();
         saveGitHubLogs([newLog, ...existing]);
       }
-    })
-    .catch((err) => {
-      console.warn('Background GitHub save error:', err);
-    });
+      return {
+        success: true,
+        commitSha: json.github?.commitSha,
+        commitUrl: json.github?.commitUrl,
+        message: json.message || 'Auto-pushed to GitHub repository',
+      };
+    }
+  } catch (err: any) {
+    console.warn('Background GitHub save error:', err);
+    return {
+      success: false,
+      message: err.message || 'Saved locally, GitHub sync failed',
+    };
+  }
+
+  return { success: false, message: 'Saved to local cache' };
 }
 
 export function loadSession(): Session | null {
