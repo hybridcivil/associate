@@ -46,7 +46,7 @@
       "phone": "2207",
       "password": "2208",
       "email": "ffg@gg.com",
-      "address": "hhhj",
+      "address": "Dhaka, Bangladesh",
       "status": "active"
     }
   ],
@@ -70,26 +70,6 @@
       "advance": 250000,
       "associateId": "assoc-2",
       "date": "2026-03-15"
-    },
-    {
-      "id": "client-3",
-      "name": "Dr. Rafiqul Islam Residence",
-      "phone": "01977345678",
-      "project": "Soil Investigation & G+4 Structural Design",
-      "price": 180000,
-      "advance": 90000,
-      "associateId": "assoc-4",
-      "date": "2026-03-18"
-    },
-    {
-      "id": "client-muczs9yo18tbrw",
-      "name": "abc",
-      "phone": "2888",
-      "project": "ffgh",
-      "price": 100,
-      "advance": 50,
-      "associateId": "assoc-1",
-      "date": "2026-09-22"
     }
   ],
   "transactions": [
@@ -178,92 +158,6 @@
       "profit": 150000,
       "kind": "equal",
       "distributionId": "tx-5"
-    },
-    {
-      "id": "tx-muczw7hvdjlqf3",
-      "date": "2026-09-22",
-      "clientId": "client-muczs9yo18tbrw",
-      "associateId": "assoc-1",
-      "shareType": "Selected associate 5%",
-      "amount": 0.25,
-      "profit": 5,
-      "kind": "referral"
-    },
-    {
-      "id": "tx-muczw7hv4azayw",
-      "date": "2026-09-22",
-      "clientId": "client-muczs9yo18tbrw",
-      "associateId": "assoc-2",
-      "shareType": "Equal distribution 5% pool",
-      "amount": 0.08333333333333333,
-      "profit": 5,
-      "kind": "equal",
-      "distributionId": "tx-muczw7hvdjlqf3"
-    },
-    {
-      "id": "tx-muczw7hv4btwrs",
-      "date": "2026-09-22",
-      "clientId": "client-muczs9yo18tbrw",
-      "associateId": "assoc-3",
-      "shareType": "Equal distribution 5% pool",
-      "amount": 0.08333333333333333,
-      "profit": 5,
-      "kind": "equal",
-      "distributionId": "tx-muczw7hvdjlqf3"
-    },
-    {
-      "id": "tx-muczw7hv3564mp",
-      "date": "2026-09-22",
-      "clientId": "client-muczs9yo18tbrw",
-      "associateId": "assoc-4",
-      "shareType": "Equal distribution 5% pool",
-      "amount": 0.08333333333333333,
-      "profit": 5,
-      "kind": "equal",
-      "distributionId": "tx-muczw7hvdjlqf3"
-    },
-    {
-      "id": "tx-muczxlrhtugofp",
-      "date": "2026-09-22",
-      "clientId": "client-muczs9yo18tbrw",
-      "associateId": "assoc-1",
-      "shareType": "Selected associate 5%",
-      "amount": 2.5,
-      "profit": 50,
-      "kind": "referral"
-    },
-    {
-      "id": "tx-muczxlrhpmo398",
-      "date": "2026-09-22",
-      "clientId": "client-muczs9yo18tbrw",
-      "associateId": "assoc-2",
-      "shareType": "Equal distribution 5% pool",
-      "amount": 0.8333333333333334,
-      "profit": 50,
-      "kind": "equal",
-      "distributionId": "tx-muczxlrhtugofp"
-    },
-    {
-      "id": "tx-muczxlrhxvjpxz",
-      "date": "2026-09-22",
-      "clientId": "client-muczs9yo18tbrw",
-      "associateId": "assoc-3",
-      "shareType": "Equal distribution 5% pool",
-      "amount": 0.8333333333333334,
-      "profit": 50,
-      "kind": "equal",
-      "distributionId": "tx-muczxlrhtugofp"
-    },
-    {
-      "id": "tx-muczxlrheg25vs",
-      "date": "2026-09-22",
-      "clientId": "client-muczs9yo18tbrw",
-      "associateId": "assoc-4",
-      "shareType": "Equal distribution 5% pool",
-      "amount": 0.8333333333333334,
-      "profit": 50,
-      "kind": "equal",
-      "distributionId": "tx-muczxlrhtugofp"
     }
   ],
   "payments": [
@@ -367,6 +261,34 @@
       "read": true,
       "priority": "normal",
       "category": "payment"
+    },
+    {
+      "id": "msg-mudwgze49bchr4",
+      "senderRole": "admin",
+      "senderId": "admin",
+      "senderName": "Administrator",
+      "receiverId": "assoc-mud4mz7mj22up8",
+      "receiverName": "xyz",
+      "associateId": "assoc-mud4mz7mj22up8",
+      "content": "hi",
+      "timestamp": "2026-09-23T09:28:00.556Z",
+      "read": true,
+      "priority": "normal",
+      "category": "general"
+    },
+    {
+      "id": "msg-mudwv7yexuh9vz",
+      "senderRole": "admin",
+      "senderId": "admin",
+      "senderName": "Administrator",
+      "receiverId": "assoc-mud4mz7mj22up8",
+      "receiverName": "xyz",
+      "associateId": "assoc-mud4mz7mj22up8",
+      "content": "hi",
+      "timestamp": "2026-09-23T09:39:04.838Z",
+      "read": false,
+      "priority": "normal",
+      "category": "general"
     }
   ]
 }

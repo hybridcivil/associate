@@ -4,6 +4,7 @@ import {
   loadDatabase,
   saveDatabase,
   fetchAuthoritativeDatabase,
+  mergeDatabases,
   loadSession,
   saveSession,
   calculateAssociateTotals,
@@ -71,8 +72,10 @@ export default function App() {
       try {
         const result = await fetchAuthoritativeDatabase();
         if (result.success && result.data) {
+          // Smart merge ensures local un-synced messages or records are never wiped out
+          const merged = mergeDatabases(dbRef.current, result.data);
           const currentJson = JSON.stringify(dbRef.current);
-          const incomingJson = JSON.stringify(result.data);
+          const incomingJson = JSON.stringify(merged);
 
           const timeStr = new Date().toLocaleTimeString([], {
             hour: '2-digit',
@@ -85,7 +88,8 @@ export default function App() {
           // If content changed remotely, update page state automatically!
           if (currentJson !== incomingJson) {
             console.log('[Auto-Pull] Remote updates detected. Updating local state.');
-            setDb(result.data);
+            setDb(merged);
+            dbRef.current = merged;
             showSyncToast(
               isManual
                 ? '⬇️ Pulled latest updates from GitHub!'
@@ -95,7 +99,7 @@ export default function App() {
 
             // If session is an associate whose details were updated remotely, update session
             if (sessionRef.current && sessionRef.current.role === 'associate') {
-              const currentAssoc = result.data.associates.find(
+              const currentAssoc = merged.associates.find(
                 (a) => a.id === sessionRef.current?.id
               );
               if (
@@ -170,10 +174,17 @@ export default function App() {
       setLastSyncTime(timeStr);
 
       if (res.success) {
-        showSyncToast(
-          `⬆️ Auto-pushed to GitHub (${res.commitSha || 'synced'})!`,
-          'push'
-        );
+        if (res.authError) {
+          showSyncToast(
+            'Saved to repository file. Note: GitHub token invalid/expired (check GitHub Host)',
+            'info'
+          );
+        } else {
+          showSyncToast(
+            `⬆️ Auto-pushed to GitHub (${res.commitSha || 'synced'})!`,
+            'push'
+          );
+        }
       } else {
         showSyncToast('Saved to repository file; auto-push queued.', 'info');
       }

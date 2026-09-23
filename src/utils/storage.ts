@@ -71,7 +71,7 @@ const INITIAL_DATA: AppDatabase = {
       id: 'assoc-mud4mz7mj22up8',
       name: 'xyz',
       phone: '2207',
-      password: '2207',
+      password: '2208',
       email: 'ffg@gg.com',
       address: 'Dhaka, Bangladesh',
       status: 'active',
@@ -267,12 +267,137 @@ const INITIAL_DATA: AppDatabase = {
       subject: 'Structural Detailing Sheet Approval for Mirpur Site',
       content: 'Dear Admin, the revised structural detailing sheets with BNBC-2020 seismic provisions for Mirpur site have been finalized. Please let me know once approved so we can issue to site engineer.',
       timestamp: '2026-03-18T09:15:00Z',
-      read: false,
+      read: true,
       priority: 'urgent',
       category: 'technical',
     },
+    {
+      id: 'msg-mud501rbotcxke',
+      senderRole: 'admin',
+      senderId: 'admin',
+      senderName: 'Administrator',
+      receiverId: 'assoc-mud4mz7mj22up8',
+      receiverName: 'xyz',
+      associateId: 'assoc-mud4mz7mj22up8',
+      content: 'hi',
+      timestamp: '2026-09-22T20:39:00.839Z',
+      read: true,
+      priority: 'normal',
+      category: 'general',
+    },
+    {
+      id: 'msg-mud5qe5tdh59ar',
+      senderRole: 'associate',
+      senderId: 'assoc-mud4mz7mj22up8',
+      senderName: 'xyz',
+      receiverId: 'admin',
+      receiverName: 'Administrator',
+      associateId: 'assoc-mud4mz7mj22up8',
+      content: 'need payment',
+      timestamp: '2026-09-22T20:59:29.969Z',
+      read: true,
+      priority: 'normal',
+      category: 'payment',
+    },
+    {
+      id: 'msg-mudwgze49bchr4',
+      senderRole: 'admin',
+      senderId: 'admin',
+      senderName: 'Administrator',
+      receiverId: 'assoc-mud4mz7mj22up8',
+      receiverName: 'xyz',
+      associateId: 'assoc-mud4mz7mj22up8',
+      content: 'hi',
+      timestamp: '2026-09-23T09:28:00.556Z',
+      read: true,
+      priority: 'normal',
+      category: 'general',
+    },
   ],
 };
+
+/**
+ * Merge two databases non-destructively so NO messages or records are ever lost.
+ */
+export function mergeDatabases(localDb: AppDatabase, remoteDb: AppDatabase): AppDatabase {
+  if (!localDb) return remoteDb || INITIAL_DATA;
+  if (!remoteDb) return localDb || INITIAL_DATA;
+
+  // 1. Merge associates (union by id)
+  const associateMap = new Map<string, any>();
+  for (const a of (localDb.associates || [])) {
+    if (a && a.id) associateMap.set(a.id, a);
+  }
+  for (const a of (remoteDb.associates || [])) {
+    if (a && a.id) {
+      const existing = associateMap.get(a.id);
+      associateMap.set(a.id, existing ? { ...existing, ...a } : a);
+    }
+  }
+
+  // 2. Merge clients (union by id)
+  const clientMap = new Map<string, any>();
+  for (const c of (localDb.clients || [])) {
+    if (c && c.id) clientMap.set(c.id, c);
+  }
+  for (const c of (remoteDb.clients || [])) {
+    if (c && c.id) {
+      const existing = clientMap.get(c.id);
+      clientMap.set(c.id, existing ? { ...existing, ...c } : c);
+    }
+  }
+
+  // 3. Merge transactions (union by id)
+  const txMap = new Map<string, any>();
+  for (const t of (localDb.transactions || [])) {
+    if (t && t.id) txMap.set(t.id, t);
+  }
+  for (const t of (remoteDb.transactions || [])) {
+    if (t && t.id) txMap.set(t.id, t);
+  }
+
+  // 4. Merge payments (union by id)
+  const payMap = new Map<string, any>();
+  for (const p of (localDb.payments || [])) {
+    if (p && p.id) payMap.set(p.id, p);
+  }
+  for (const p of (remoteDb.payments || [])) {
+    if (p && p.id) payMap.set(p.id, p);
+  }
+
+  // 5. Merge messages (union by id) - CRITICAL: NEVER DELETE ANY MESSAGE!
+  const msgMap = new Map<string, any>();
+  for (const m of (localDb.messages || [])) {
+    if (m && m.id) msgMap.set(m.id, m);
+  }
+  for (const m of (remoteDb.messages || [])) {
+    if (m && m.id) {
+      const existing = msgMap.get(m.id);
+      if (existing) {
+        msgMap.set(m.id, {
+          ...existing,
+          ...m,
+          read: existing.read || m.read,
+        });
+      } else {
+        msgMap.set(m.id, m);
+      }
+    }
+  }
+  const mergedMessages = Array.from(msgMap.values()).sort(
+    (a: any, b: any) =>
+      new Date(a.timestamp || 0).getTime() - new Date(b.timestamp || 0).getTime()
+  );
+
+  return {
+    admin: remoteDb.admin || localDb.admin || INITIAL_DATA.admin,
+    associates: Array.from(associateMap.values()),
+    clients: Array.from(clientMap.values()),
+    transactions: Array.from(txMap.values()),
+    payments: Array.from(payMap.values()),
+    messages: mergedMessages,
+  };
+}
 
 export function loadDatabase(): AppDatabase {
   try {
@@ -327,14 +452,18 @@ export async function fetchAuthoritativeDatabase(): Promise<{
           json.data.payments = [];
         }
 
+        // Merge incoming authoritative data with current local cached data to guarantee no messages are ever lost
+        const currentLocal = loadDatabase();
+        const merged = mergeDatabases(currentLocal, json.data);
+
         // Cache locally for offline resilience
         try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(json.data));
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
         } catch (e) {}
 
         return {
           success: true,
-          data: json.data,
+          data: merged,
           source: json.source || 'github',
           sha: json.sha,
         };
@@ -360,6 +489,8 @@ export async function saveDatabase(data: AppDatabase, commitMessage?: string): P
   commitSha?: string;
   commitUrl?: string;
   message?: string;
+  authError?: boolean;
+  warning?: string;
 }> {
   // 1. Instant local cache update so UI is immediately updated
   try {
@@ -406,10 +537,11 @@ export async function saveDatabase(data: AppDatabase, commitMessage?: string): P
         commitSha: json.github?.commitSha,
         commitUrl: json.github?.commitUrl,
         message: json.message || 'Auto-pushed to GitHub repository',
+        authError: json.github?.authError,
+        warning: json.github?.warning,
       };
     }
   } catch (err: any) {
-    console.warn('Background GitHub save error:', err);
     return {
       success: false,
       message: err.message || 'Saved locally, GitHub sync failed',
@@ -509,7 +641,14 @@ export function saveGitHubLogs(logs: GitHubCommitLog[]) {
 export async function syncDatabaseToGitHub(
   db: AppDatabase,
   commitMessage: string
-): Promise<{ success: boolean; commitSha?: string; commitUrl?: string; message?: string; error?: string }> {
+): Promise<{
+  success: boolean;
+  commitSha?: string;
+  commitUrl?: string;
+  message?: string;
+  error?: string;
+  authError?: boolean;
+}> {
   try {
     const config = loadGitHubConfig();
     if (!config || !config.owner || !config.repo) {
@@ -537,7 +676,11 @@ export async function syncDatabaseToGitHub(
 
     const data = await res.json();
     if (!res.ok || data.error) {
-      return { success: false, error: data.error || 'Failed to push to GitHub' };
+      return {
+        success: false,
+        error: data.error || 'Failed to push to GitHub',
+        authError: data.authError,
+      };
     }
 
     const newLog: GitHubCommitLog = {

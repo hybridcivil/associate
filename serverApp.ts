@@ -16,8 +16,11 @@ export function createApp(): Express {
       Accept: "application/vnd.github.v3+json",
       "User-Agent": "HybridCivil-Network-App",
     };
-    if (token && token.trim()) {
-      headers["Authorization"] = `Bearer ${token.trim()}`;
+    if (token && typeof token === "string" && token.trim()) {
+      const cleanToken = token.trim();
+      headers["Authorization"] = cleanToken.startsWith("Bearer ") || cleanToken.startsWith("token ")
+        ? cleanToken
+        : `token ${cleanToken}`;
     }
     return headers;
   };
@@ -100,11 +103,92 @@ ${clients
 `;
   };
 
+  // Helper to merge databases non-destructively so NO messages or records are ever lost
+  const mergeDatabases = (localDb: any, incomingDb: any): any => {
+    if (!localDb) return incomingDb || {};
+    if (!incomingDb) return localDb || {};
+
+    // 1. Merge associates (union by id, preserve updated password and details)
+    const associateMap = new Map<string, any>();
+    for (const a of (localDb.associates || [])) {
+      if (a && a.id) associateMap.set(a.id, a);
+    }
+    for (const a of (incomingDb.associates || [])) {
+      if (a && a.id) {
+        const existing = associateMap.get(a.id);
+        associateMap.set(a.id, existing ? { ...existing, ...a } : a);
+      }
+    }
+
+    // 2. Merge clients (union by id)
+    const clientMap = new Map<string, any>();
+    for (const c of (localDb.clients || [])) {
+      if (c && c.id) clientMap.set(c.id, c);
+    }
+    for (const c of (incomingDb.clients || [])) {
+      if (c && c.id) {
+        const existing = clientMap.get(c.id);
+        clientMap.set(c.id, existing ? { ...existing, ...c } : c);
+      }
+    }
+
+    // 3. Merge transactions (union by id)
+    const txMap = new Map<string, any>();
+    for (const t of (localDb.transactions || [])) {
+      if (t && t.id) txMap.set(t.id, t);
+    }
+    for (const t of (incomingDb.transactions || [])) {
+      if (t && t.id) txMap.set(t.id, t);
+    }
+
+    // 4. Merge payments (union by id)
+    const payMap = new Map<string, any>();
+    for (const p of (localDb.payments || [])) {
+      if (p && p.id) payMap.set(p.id, p);
+    }
+    for (const p of (incomingDb.payments || [])) {
+      if (p && p.id) payMap.set(p.id, p);
+    }
+
+    // 5. Merge messages (union by id) - CRITICAL: NEVER DELETE ANY MESSAGE!
+    const msgMap = new Map<string, any>();
+    for (const m of (localDb.messages || [])) {
+      if (m && m.id) msgMap.set(m.id, m);
+    }
+    for (const m of (incomingDb.messages || [])) {
+      if (m && m.id) {
+        const existing = msgMap.get(m.id);
+        if (existing) {
+          msgMap.set(m.id, {
+            ...existing,
+            ...m,
+            read: existing.read || m.read,
+          });
+        } else {
+          msgMap.set(m.id, m);
+        }
+      }
+    }
+    const mergedMessages = Array.from(msgMap.values()).sort(
+      (a: any, b: any) =>
+        new Date(a.timestamp || 0).getTime() - new Date(b.timestamp || 0).getTime()
+    );
+
+    return {
+      admin: incomingDb.admin || localDb.admin || { username: "admin", password: "admin123" },
+      associates: Array.from(associateMap.values()),
+      clients: Array.from(clientMap.values()),
+      transactions: Array.from(txMap.values()),
+      payments: Array.from(payMap.values()),
+      messages: mergedMessages,
+    };
+  };
+
   // ==========================================
   // AUTHORITATIVE DATABASE API (GITHUB / DISK)
   // ==========================================
 
-  // GET /database - Load authoritative database directly from GitHub or server repository
+  // GET /database - Load authoritative database directly from GitHub or server repository with smart merging
   router.get("/database", async (req, res) => {
     try {
       const owner = (req.query.owner as string) || process.env.GITHUB_OWNER;
@@ -112,7 +196,16 @@ ${clients
       const branch = (req.query.branch as string) || "main";
       const token = (req.query.token as string) || process.env.GITHUB_TOKEN;
 
-      // 1. If GitHub repository credentials are provided, attempt to fetch fresh from GitHub
+      const dbFilePath = path.join(process.cwd(), "data", "hybrid_civil_database.json");
+      let localDb: any = null;
+      if (fs.existsSync(dbFilePath)) {
+        try {
+          const fileContent = await fs.promises.readFile(dbFilePath, "utf-8");
+          localDb = JSON.parse(fileContent);
+        } catch (e) {}
+      }
+
+      // 1. If GitHub repository credentials are provided, attempt to fetch fresh from GitHub and MERGE
       if (owner && repo && token) {
         try {
           const ghUrl = `https://api.github.com/repos/${owner}/${repo}/contents/data/hybrid_civil_database.json?ref=${branch}`;
@@ -121,17 +214,21 @@ ${clients
             const ghData = (await ghRes.json()) as any;
             if (ghData.content && ghData.encoding === "base64") {
               const decoded = Buffer.from(ghData.content, "base64").toString("utf-8");
-              const parsed = JSON.parse(decoded);
+              const remoteParsed = JSON.parse(decoded);
+
+              // Smart merge so local messages are NEVER wiped out by older remote copies
+              const mergedDb = mergeDatabases(localDb, remoteParsed);
+              const mergedJson = JSON.stringify(mergedDb, null, 2);
+
               // Cache to local disk as well
-              const dbFilePath = path.join(process.cwd(), "data", "hybrid_civil_database.json");
               await fs.promises.mkdir(path.dirname(dbFilePath), { recursive: true });
-              await fs.promises.writeFile(dbFilePath, decoded, "utf-8");
+              await fs.promises.writeFile(dbFilePath, mergedJson, "utf-8");
 
               return res.json({
                 success: true,
-                source: "github",
+                source: "github_merged",
                 sha: ghData.sha,
-                data: parsed,
+                data: mergedDb,
                 updatedAt: new Date().toISOString(),
               });
             }
@@ -142,14 +239,11 @@ ${clients
       }
 
       // 2. Read from local repository file: data/hybrid_civil_database.json
-      const dbFilePath = path.join(process.cwd(), "data", "hybrid_civil_database.json");
-      if (fs.existsSync(dbFilePath)) {
-        const fileContent = await fs.promises.readFile(dbFilePath, "utf-8");
-        const parsed = JSON.parse(fileContent);
+      if (localDb) {
         return res.json({
           success: true,
           source: "local_repository",
-          data: parsed,
+          data: localDb,
           updatedAt: new Date().toISOString(),
         });
       }
@@ -161,7 +255,7 @@ ${clients
     }
   });
 
-  // POST /database/save - Authoritative save to server repository and push to GitHub
+  // POST /database/save - Authoritative save to server repository and push to GitHub with smart merging
   router.post("/database/save", async (req, res) => {
     try {
       const { data, message, owner = "engrkalilinux", repo = "hybrid-civil-associate-network", branch = "main", token } = req.body;
@@ -169,13 +263,24 @@ ${clients
         return res.status(400).json({ error: "Database data payload is required." });
       }
 
-      const jsonString = JSON.stringify(data, null, 2);
       const dbFilePath = path.join(process.cwd(), "data", "hybrid_civil_database.json");
+      let currentLocalDb: any = null;
+      if (fs.existsSync(dbFilePath)) {
+        try {
+          const fileContent = await fs.promises.readFile(dbFilePath, "utf-8");
+          currentLocalDb = JSON.parse(fileContent);
+        } catch (e) {}
+      }
+
+      // Merge current local with new data to prevent accidental message deletion
+      const mergedDb = mergeDatabases(currentLocalDb, data);
+      const jsonString = JSON.stringify(mergedDb, null, 2);
+
       await fs.promises.mkdir(path.dirname(dbFilePath), { recursive: true });
       await fs.promises.writeFile(dbFilePath, jsonString, "utf-8");
 
       // Also update PROJECT_OVERVIEW.md
-      const overviewMd = generateOverviewMarkdown(data);
+      const overviewMd = generateOverviewMarkdown(mergedDb);
       const overviewPath = path.join(process.cwd(), "PROJECT_OVERVIEW.md");
       await fs.promises.writeFile(overviewPath, overviewMd, "utf-8");
 
@@ -189,75 +294,87 @@ ${clients
           const cleanPath = "data/hybrid_civil_database.json";
           const checkUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${cleanPath}?ref=${branch}`;
           const checkRes = await fetch(checkUrl, { headers: getGitHubHeaders(token) });
-          let currentSha: string | undefined;
-          if (checkRes.ok) {
-            const fileData = (await checkRes.json()) as any;
-            currentSha = fileData.sha;
-          }
 
-          const putUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${cleanPath}`;
-          const putPayload: any = {
-            message: commitMsg,
-            content: Buffer.from(jsonString).toString("base64"),
-            branch,
-          };
-          if (currentSha) putPayload.sha = currentSha;
-
-          const putRes = await fetch(putUrl, {
-            method: "PUT",
-            headers: {
-              ...getGitHubHeaders(token),
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(putPayload),
-          });
-
-          if (putRes.ok) {
-            const putData = (await putRes.json()) as any;
-            githubResult = {
-              success: true,
-              pushedToGitHub: true,
-              commitSha: putData.commit?.sha?.substring(0, 7) || "latest",
-              commitUrl: putData.commit?.html_url || `https://github.com/${owner}/${repo}`,
-            };
-
-            // Also push updated PROJECT_OVERVIEW.md to GitHub
-            try {
-              const ovCheck = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/PROJECT_OVERVIEW.md?ref=${branch}`, {
-                headers: getGitHubHeaders(token),
-              });
-              let ovSha: string | undefined;
-              if (ovCheck.ok) {
-                const ovData = (await ovCheck.json()) as any;
-                ovSha = ovData.sha;
-              }
-              await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/PROJECT_OVERVIEW.md`, {
-                method: "PUT",
-                headers: {
-                  ...getGitHubHeaders(token),
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  message: `Update PROJECT_OVERVIEW.md for ${commitMsg}`,
-                  content: Buffer.from(overviewMd).toString("base64"),
-                  branch,
-                  ...(ovSha ? { sha: ovSha } : {}),
-                }),
-              });
-            } catch (ovErr) {
-              console.warn("Could not push PROJECT_OVERVIEW.md to GitHub:", ovErr);
-            }
-          } else {
-            const errBody = await putRes.text();
-            console.warn("GitHub PUT returned error:", putRes.status, errBody);
+          // If token returned 401 Unauthorized, handle gracefully and inform frontend
+          if (checkRes.status === 401) {
             githubResult = {
               success: true,
               pushedToGitHub: false,
-              warning: `Saved to repository files, but GitHub remote returned ${putRes.status}: ${errBody}`,
+              authError: true,
+              warning: "GitHub Personal Access Token is invalid or expired (401 Bad credentials). Local changes are safely saved to data/hybrid_civil_database.json.",
             };
+          } else {
+            let currentSha: string | undefined;
+            if (checkRes.ok) {
+              const fileData = (await checkRes.json()) as any;
+              currentSha = fileData.sha;
+            }
+
+            const putUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${cleanPath}`;
+            const putPayload: any = {
+              message: commitMsg,
+              content: Buffer.from(jsonString).toString("base64"),
+              branch,
+            };
+            if (currentSha) putPayload.sha = currentSha;
+
+            const putRes = await fetch(putUrl, {
+              method: "PUT",
+              headers: {
+                ...getGitHubHeaders(token),
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(putPayload),
+            });
+
+            if (putRes.ok) {
+              const putData = (await putRes.json()) as any;
+              githubResult = {
+                success: true,
+                pushedToGitHub: true,
+                commitSha: putData.commit?.sha?.substring(0, 7) || "latest",
+                commitUrl: putData.commit?.html_url || `https://github.com/${owner}/${repo}`,
+              };
+
+              // Also push updated PROJECT_OVERVIEW.md to GitHub
+              try {
+                const ovCheck = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/PROJECT_OVERVIEW.md?ref=${branch}`, {
+                  headers: getGitHubHeaders(token),
+                });
+                let ovSha: string | undefined;
+                if (ovCheck.ok) {
+                  const ovData = (await ovCheck.json()) as any;
+                  ovSha = ovData.sha;
+                }
+                await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/PROJECT_OVERVIEW.md`, {
+                  method: "PUT",
+                  headers: {
+                    ...getGitHubHeaders(token),
+                    "Content-Type": "application/json",
+                  },
+                  body: JSON.stringify({
+                    message: `Update PROJECT_OVERVIEW.md for ${commitMsg}`,
+                    content: Buffer.from(overviewMd).toString("base64"),
+                    branch,
+                    ...(ovSha ? { sha: ovSha } : {}),
+                  }),
+                });
+              } catch {
+                // Secondary file push failure is non-fatal
+              }
+            } else {
+              const isAuthError = putRes.status === 401;
+              githubResult = {
+                success: true,
+                pushedToGitHub: false,
+                authError: isAuthError,
+                warning: isAuthError
+                  ? "GitHub Personal Access Token is invalid or expired (401 Bad credentials). Local changes are safely saved to data/hybrid_civil_database.json."
+                  : `Saved to repository files, but GitHub remote returned status ${putRes.status}`,
+              };
+            }
           }
         } catch (remoteErr: any) {
-          console.error("GitHub remote push error:", remoteErr);
           githubResult = {
             success: true,
             pushedToGitHub: false,
@@ -399,6 +516,12 @@ ${clients
         const checkRes = await fetch(checkUrl, {
           headers: getGitHubHeaders(token),
         });
+        if (checkRes.status === 401) {
+          return res.status(401).json({
+            error: "GitHub token is invalid or expired (401 Bad credentials). Please verify your token in the GitHub Host settings.",
+            authError: true,
+          });
+        }
         if (checkRes.ok) {
           const fileData = (await checkRes.json()) as any;
           currentSha = fileData.sha;
@@ -429,8 +552,12 @@ ${clients
       const resData = (await putRes.json()) as any;
 
       if (!putRes.ok) {
+        const isAuthError = putRes.status === 401;
         return res.status(putRes.status).json({
-          error: resData.message || `GitHub error (${putRes.status}) while committing file.`,
+          error: isAuthError
+            ? "GitHub token is invalid or expired (401 Bad credentials). Please verify your token in the GitHub Host settings."
+            : resData.message || `GitHub error (${putRes.status}) while committing file.`,
+          authError: isAuthError,
           details: resData,
         });
       }

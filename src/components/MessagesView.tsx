@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AppDatabase, Session, Message } from '../types';
 import {
-  saveDatabase,
   generateId,
   calculateAssociateTotals,
   formatMoney,
-  syncDatabaseToGitHub,
   loadGitHubConfig,
 } from '../utils/storage';
 import {
@@ -41,7 +39,7 @@ import { motion, AnimatePresence } from 'motion/react';
 interface MessagesViewProps {
   db: AppDatabase;
   session: Session;
-  onUpdateDb: (updated: AppDatabase) => void;
+  onUpdateDb: (updated: AppDatabase, commitMsg?: string) => void;
 }
 
 export const MessagesView: React.FC<MessagesViewProps> = ({
@@ -57,8 +55,18 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
     if (isAdmin) {
       // Default to associate who has the most recent message, or first associate
       const sorted = [...(db.associates || [])].sort((a, b) => {
-        const aMsgs = db.messages.filter((m) => m.associateId === a.id);
-        const bMsgs = db.messages.filter((m) => m.associateId === b.id);
+        const aMsgs = (db.messages || []).filter(
+          (m) =>
+            m.associateId === a.id ||
+            m.senderId === a.id ||
+            m.receiverId === a.id
+        );
+        const bMsgs = (db.messages || []).filter(
+          (m) =>
+            m.associateId === b.id ||
+            m.senderId === b.id ||
+            m.receiverId === b.id
+        );
         const aLast = aMsgs.length ? new Date(aMsgs[aMsgs.length - 1].timestamp).getTime() : 0;
         const bLast = bMsgs.length ? new Date(bMsgs[bMsgs.length - 1].timestamp).getTime() : 0;
         return bLast - aLast;
@@ -106,17 +114,17 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
   // Mark unread messages as read when viewed
   useEffect(() => {
     if (isAdmin && selectedAssociateId) {
-      const hasUnreadFromAssociate = db.messages.some(
+      const hasUnreadFromAssociate = (db.messages || []).some(
         (m) =>
-          m.associateId === selectedAssociateId &&
+          (m.associateId === selectedAssociateId || m.senderId === selectedAssociateId) &&
           m.senderRole === 'associate' &&
           !m.read
       );
 
       if (hasUnreadFromAssociate) {
-        const updatedMessages = db.messages.map((m) => {
+        const updatedMessages = (db.messages || []).map((m) => {
           if (
-            m.associateId === selectedAssociateId &&
+            (m.associateId === selectedAssociateId || m.senderId === selectedAssociateId) &&
             m.senderRole === 'associate' &&
             !m.read
           ) {
@@ -126,21 +134,20 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
         });
 
         const updatedDb = { ...db, messages: updatedMessages };
-        saveDatabase(updatedDb);
-        onUpdateDb(updatedDb);
+        onUpdateDb(updatedDb, `Mark messages as read for ${selectedAssociateId}`);
       }
     } else if (!isAdmin && session.id) {
-      const hasUnreadFromAdmin = db.messages.some(
+      const hasUnreadFromAdmin = (db.messages || []).some(
         (m) =>
-          m.associateId === session.id &&
+          (m.associateId === session.id || m.receiverId === session.id) &&
           m.senderRole === 'admin' &&
           !m.read
       );
 
       if (hasUnreadFromAdmin) {
-        const updatedMessages = db.messages.map((m) => {
+        const updatedMessages = (db.messages || []).map((m) => {
           if (
-            m.associateId === session.id &&
+            (m.associateId === session.id || m.receiverId === session.id) &&
             m.senderRole === 'admin' &&
             !m.read
           ) {
@@ -150,22 +157,26 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
         });
 
         const updatedDb = { ...db, messages: updatedMessages };
-        saveDatabase(updatedDb);
-        onUpdateDb(updatedDb);
+        onUpdateDb(updatedDb, `Mark messages as read for associate`);
       }
     }
   }, [selectedAssociateId, isAdmin, session.id]);
 
   // Current active associate for thread
   const activeAssociateId = isAdmin ? selectedAssociateId : session.id || '';
-  const activeAssociate = db.associates.find((a) => a.id === activeAssociateId);
+  const activeAssociate = (db.associates || []).find((a) => a.id === activeAssociateId);
   const activeAssociateTotals = activeAssociate
     ? calculateAssociateTotals(db, activeAssociate.id)
     : { earned: 0, paid: 0, due: 0 };
 
-  // Messages in active thread
-  const threadMessages = db.messages
-    .filter((m) => m.associateId === activeAssociateId)
+  // Messages in active thread (robust matching by associateId, senderId, or receiverId)
+  const threadMessages = (db.messages || [])
+    .filter(
+      (m) =>
+        m.associateId === activeAssociateId ||
+        m.senderId === activeAssociateId ||
+        m.receiverId === activeAssociateId
+    )
     .sort(
       (a, b) =>
         new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
@@ -249,8 +260,8 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
     // If admin replies, also mark any previous associate messages in thread as read
     const updatedMessages = isAdmin
       ? [
-          ...db.messages.map((m) =>
-            m.associateId === activeAssociateId &&
+          ...(db.messages || []).map((m) =>
+            (m.associateId === activeAssociateId || m.senderId === activeAssociateId) &&
             m.senderRole === 'associate' &&
             !m.read
               ? { ...m, read: true }
@@ -258,54 +269,31 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
           ),
           newMsg,
         ]
-      : [...db.messages, newMsg];
+      : [...(db.messages || []), newMsg];
 
     const updatedDb: AppDatabase = {
       ...db,
       messages: updatedMessages,
     };
 
-    saveDatabase(updatedDb);
-    onUpdateDb(updatedDb);
+    const commitMsg = `Message: ${isAdmin ? 'Admin' : session.name} -> ${
+      isAdmin ? activeAssociate?.name : 'Admin'
+    } [${newMsg.subject || 'Thread'}]`;
+
+    // Single source of truth update - auto persists to cache, server repo and GitHub
+    onUpdateDb(updatedDb, commitMsg);
 
     setNewMessageText('');
     setNewSubject('');
     setIsUrgent(false);
+    setIsSending(false);
 
-    // Auto-sync to GitHub repository
-    try {
-      const ghResult = await syncDatabaseToGitHub(
-        updatedDb,
-        `Message: ${isAdmin ? 'Admin' : session.name} -> ${
-          isAdmin ? activeAssociate?.name : 'Admin'
-        } [${newMsg.subject || 'Thread'}]`
-      );
-
-      if (ghResult.success) {
-        showNotice(
-          isAdmin
-            ? `Reply delivered & auto-synced to GitHub (${ghResult.commitSha})!`
-            : `Message sent to Admin & auto-synced to GitHub (${ghResult.commitSha})!`,
-          'success'
-        );
-      } else {
-        showNotice(
-          isAdmin
-            ? `Reply dispatched to ${activeAssociate?.name || 'Associate'}.`
-            : 'Message delivered to Administrator.',
-          'success'
-        );
-      }
-    } catch {
-      showNotice(
-        isAdmin
-          ? `Reply dispatched to ${activeAssociate?.name || 'Associate'}.`
-          : 'Message delivered to Administrator.',
-        'success'
-      );
-    } finally {
-      setIsSending(false);
-    }
+    showNotice(
+      isAdmin
+        ? `Reply dispatched to ${activeAssociate?.name || 'Associate'}.`
+        : 'Message delivered to Administrator.',
+      'success'
+    );
   };
 
   // Delete message (Admin only)
@@ -313,27 +301,21 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
     if (!isAdmin) return;
     if (!confirm('Are you sure you want to delete this message record?')) return;
 
-    const updatedMessages = db.messages.filter((m) => m.id !== msgId);
+    const updatedMessages = (db.messages || []).filter((m) => m.id !== msgId);
     const updatedDb = { ...db, messages: updatedMessages };
-    saveDatabase(updatedDb);
-    onUpdateDb(updatedDb);
+    onUpdateDb(updatedDb, `Delete message ${msgId} by Administrator`);
     showNotice('Message removed from thread.', 'success');
-
-    // Auto-update to GitHub repository
-    syncDatabaseToGitHub(
-      updatedDb,
-      `Delete message ${msgId} by Administrator`
-    ).then((res) => {
-      if (res.success) {
-        showNotice(`Message removed & auto-synced to GitHub (${res.commitSha})!`, 'success');
-      }
-    }).catch(() => {});
   };
 
   // Admin: Associates thread list with unread counter and search filter
-  const associateThreads = db.associates
+  const associateThreads = (db.associates || [])
     .map((assoc) => {
-      const msgs = db.messages.filter((m) => m.associateId === assoc.id);
+      const msgs = (db.messages || []).filter(
+        (m) =>
+          m.associateId === assoc.id ||
+          m.senderId === assoc.id ||
+          m.receiverId === assoc.id
+      );
       const unreadCount = msgs.filter(
         (m) => m.senderRole === 'associate' && !m.read
       ).length;

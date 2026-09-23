@@ -1126,8 +1126,17 @@ git push -u origin ${config.branch || 'main'}
                     value={config.token}
                     onChange={(e) => setConfig({ ...config, token: e.target.value })}
                     placeholder="ghp_xxxxxxxxxxxx (Optional for demo mode)"
-                    className="w-full text-xs pl-8 pr-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500/30"
+                    className="w-full text-xs pl-8 pr-16 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-orange-500/30"
                   />
+                  {config.token ? (
+                    <button
+                      type="button"
+                      onClick={() => setConfig({ ...config, token: '' })}
+                      className="absolute right-2.5 top-2 px-1.5 py-0.5 text-[10px] text-red-500 hover:text-red-700 hover:bg-red-50 rounded font-semibold cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  ) : null}
                 </div>
                 <p className="text-[10px] text-slate-400 mt-1">
                   Requires <code className="font-semibold text-slate-600">repo</code> scope. If left blank, the app runs in full simulated Git mode so you can test all operations safely.
