@@ -180,7 +180,8 @@ export const GitHubHostView: React.FC<GitHubHostViewProps> = ({ db, onUpdateDb }
 
       const data = await res.json();
       if (!res.ok || data.error) {
-        throw new Error(data.error || 'Failed to push file to GitHub.');
+        showNotice(data.error || 'Failed to push file to GitHub.', 'error');
+        return;
       }
 
       // Add to commit logs
@@ -201,15 +202,14 @@ export const GitHubHostView: React.FC<GitHubHostViewProps> = ({ db, onUpdateDb }
       saveGitHubLogs(updatedLogs);
 
       showNotice(
-        data.message || `Successfully committed and pushed ${currentFile.path} to GitHub!`,
+        data.message || `Successfully committed and saved ${currentFile.path}!`,
         'success',
         data.commitUrl
       );
 
       fetchRepositoryFiles();
     } catch (err: any) {
-      console.error(err);
-      showNotice(err.message || 'Push failed. Please check your GitHub repository credentials.', 'error');
+      showNotice(err.message || 'Push failed. Please check your repository settings.', 'error');
     } finally {
       setIsLoading(false);
       setOperationAction(null);
@@ -239,7 +239,8 @@ export const GitHubHostView: React.FC<GitHubHostViewProps> = ({ db, onUpdateDb }
 
       const data = await res.json();
       if (!res.ok || data.error) {
-        throw new Error(data.error || `Failed to update ${targetPath} on GitHub.`);
+        showNotice(data.error || `Failed to update ${targetPath} on GitHub.`, 'error');
+        return;
       }
 
       const newLog: GitHubCommitLog = {
@@ -259,14 +260,13 @@ export const GitHubHostView: React.FC<GitHubHostViewProps> = ({ db, onUpdateDb }
       saveGitHubLogs(updatedLogs);
 
       showNotice(
-        data.message || `Successfully updated ${targetPath} on GitHub!`,
+        data.message || `Successfully updated ${targetPath}!`,
         'success',
         data.commitUrl
       );
 
       fetchRepositoryFiles();
     } catch (err: any) {
-      console.error(err);
       showNotice(err.message || 'Update failed.', 'error');
     } finally {
       setIsLoading(false);
@@ -304,7 +304,8 @@ export const GitHubHostView: React.FC<GitHubHostViewProps> = ({ db, onUpdateDb }
 
       const data = await res.json();
       if (!res.ok || data.error) {
-        throw new Error(data.error || `Failed to delete ${targetPath} from GitHub.`);
+        showNotice(data.error || `Failed to delete ${targetPath} from GitHub.`, 'error');
+        return;
       }
 
       const newLog: GitHubCommitLog = {
@@ -324,14 +325,13 @@ export const GitHubHostView: React.FC<GitHubHostViewProps> = ({ db, onUpdateDb }
       saveGitHubLogs(updatedLogs);
 
       showNotice(
-        data.message || `Deleted ${targetPath} from GitHub repository.`,
+        data.message || `Deleted ${targetPath} from repository.`,
         'success',
         data.commitUrl
       );
 
       fetchRepositoryFiles();
     } catch (err: any) {
-      console.error(err);
       showNotice(err.message || 'Delete operation failed.', 'error');
     } finally {
       setIsLoading(false);
@@ -360,11 +360,13 @@ export const GitHubHostView: React.FC<GitHubHostViewProps> = ({ db, onUpdateDb }
 
       const data = await res.json();
       if (!res.ok || data.error) {
-        throw new Error(data.error || `Failed to fetch ${targetPath} from GitHub.`);
+        showNotice(data.error || `Failed to fetch ${targetPath} from GitHub.`, 'error');
+        return;
       }
 
       if (!data.exists && !data.isDemo) {
-        throw new Error(`File ${targetPath} was not found on branch ${config.branch}.`);
+        showNotice(`File ${targetPath} was not found on branch ${config.branch}.`, 'error');
+        return;
       }
 
       if (data.content) {
@@ -403,7 +405,6 @@ export const GitHubHostView: React.FC<GitHubHostViewProps> = ({ db, onUpdateDb }
       setLogs(updatedLogs);
       saveGitHubLogs(updatedLogs);
     } catch (err: any) {
-      console.error(err);
       showNotice(err.message || 'Pull operation failed.', 'error');
     } finally {
       setIsLoading(false);

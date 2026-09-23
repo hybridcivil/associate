@@ -705,7 +705,6 @@ export async function syncDatabaseToGitHub(
       message: data.message || `Successfully pushed update to ${config.owner}/${config.repo}`,
     };
   } catch (err: any) {
-    console.error('syncDatabaseToGitHub error:', err);
     return { success: false, error: err.message || 'Auto-sync failed' };
   }
 }

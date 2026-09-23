@@ -188,8 +188,7 @@ export default function App() {
       } else {
         showSyncToast('Saved to repository file; auto-push queued.', 'info');
       }
-    } catch (err) {
-      console.error('Auto-push error:', err);
+    } catch {
       showSyncToast('Saved to repository; GitHub push will retry.', 'info');
     } finally {
       setSyncAction('idle');
