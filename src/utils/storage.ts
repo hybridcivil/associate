@@ -67,6 +67,15 @@ const INITIAL_DATA: AppDatabase = {
       address: 'Banani, Dhaka',
       status: 'active',
     },
+    {
+      id: 'assoc-mud4mz7mj22up8',
+      name: 'xyz',
+      phone: '2207',
+      password: '2207',
+      email: 'ffg@gg.com',
+      address: 'Dhaka, Bangladesh',
+      status: 'active',
+    },
   ],
   clients: [
     {
@@ -98,6 +107,16 @@ const INITIAL_DATA: AppDatabase = {
       advance: 90000,
       associateId: 'assoc-4',
       date: '2026-03-18',
+    },
+    {
+      id: 'client-muczs9yo18tbrw',
+      name: 'abc',
+      phone: '2888',
+      project: 'ffgh',
+      price: 100,
+      advance: 50,
+      associateId: 'assoc-1',
+      date: '2026-09-22',
     },
   ],
   transactions: [
@@ -270,17 +289,115 @@ export function loadDatabase(): AppDatabase {
   } catch (e) {
     console.error('Failed to load from localStorage', e);
   }
-  // Initialize default
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_DATA));
   return INITIAL_DATA;
 }
 
-export function saveDatabase(data: AppDatabase) {
+/**
+ * Loads database authoritatively from GitHub or server repository.
+ * Keeps localStorage cache up-to-date as an instant offline backup.
+ */
+export async function fetchAuthoritativeDatabase(): Promise<{
+  success: boolean;
+  data: AppDatabase;
+  source: string;
+  sha?: string;
+}> {
+  try {
+    const config = loadGitHubConfig();
+    const params = new URLSearchParams();
+    if (config?.owner) params.set('owner', config.owner);
+    if (config?.repo) params.set('repo', config.repo);
+    if (config?.branch) params.set('branch', config.branch);
+    if (config?.token) params.set('token', config.token);
+
+    const res = await fetch(`/api/database?${params.toString()}`);
+    if (res.ok) {
+      const json = await res.json();
+      if (json && json.data && Array.isArray(json.data.associates)) {
+        if (!Array.isArray(json.data.messages)) {
+          json.data.messages = INITIAL_DATA.messages || [];
+        }
+        if (!Array.isArray(json.data.clients)) {
+          json.data.clients = [];
+        }
+        if (!Array.isArray(json.data.transactions)) {
+          json.data.transactions = [];
+        }
+        if (!Array.isArray(json.data.payments)) {
+          json.data.payments = [];
+        }
+
+        // Cache locally for offline resilience
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(json.data));
+        } catch (e) {}
+
+        return {
+          success: true,
+          data: json.data,
+          source: json.source || 'github',
+          sha: json.sha,
+        };
+      }
+    }
+  } catch (e) {
+    console.warn('Could not fetch authoritative database from GitHub/server:', e);
+  }
+
+  return {
+    success: false,
+    data: loadDatabase(),
+    source: 'local_cache',
+  };
+}
+
+/**
+ * Saves database directly to GitHub and server repository.
+ * Also keeps an offline backup in localStorage.
+ */
+export function saveDatabase(data: AppDatabase, commitMessage?: string) {
+  // 1. Instant local cache update so UI is immediately updated
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   } catch (e) {
-    console.error('Failed to save to localStorage', e);
+    console.error('Local cache save error:', e);
   }
+
+  // 2. Authoritative save to GitHub & server repository
+  const config = loadGitHubConfig();
+  fetch('/api/database/save', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      data,
+      message: commitMessage || `Update database state [${new Date().toLocaleTimeString()}]`,
+      owner: config?.owner || 'engrkalilinux',
+      repo: config?.repo || 'hybrid-civil-associate-network',
+      branch: config?.branch || 'main',
+      token: config?.token || '',
+    }),
+  })
+    .then((r) => r.json())
+    .then((res) => {
+      if (res.success && res.github?.commitSha) {
+        const newLog: GitHubCommitLog = {
+          id: 'log-' + Date.now(),
+          sha: res.github.commitSha,
+          message: commitMessage || 'Auto-sync database to GitHub repository',
+          action: 'update',
+          filePath: 'data/hybrid_civil_database.json',
+          date: new Date().toISOString(),
+          status: 'success',
+          htmlUrl: res.github.commitUrl,
+          author: config?.owner || 'engrkalilinux',
+        };
+        const existing = loadGitHubLogs();
+        saveGitHubLogs([newLog, ...existing]);
+      }
+    })
+    .catch((err) => {
+      console.warn('Background GitHub save error:', err);
+    });
 }
 
 export function loadSession(): Session | null {

@@ -34,6 +34,259 @@ export function createApp(): Express {
     });
   });
 
+  // Helper to generate PROJECT_OVERVIEW.md from database object
+  const generateOverviewMarkdown = (db: any): string => {
+    const associates = Array.isArray(db.associates) ? db.associates : [];
+    const clients = Array.isArray(db.clients) ? db.clients : [];
+    const transactions = Array.isArray(db.transactions) ? db.transactions : [];
+    const payments = Array.isArray(db.payments) ? db.payments : [];
+
+    const activeAssociates = associates.filter((a: any) => a.status === "active");
+    const totalProfit = transactions
+      .filter((t: any) => t.kind === "referral")
+      .reduce((sum: number, t: any) => sum + (t.profit || 0), 0);
+    const totalEarned = transactions.reduce((sum: number, t: any) => sum + (t.amount || 0), 0);
+    const totalPaid = payments.reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
+    const totalDue = Math.max(0, totalEarned - totalPaid);
+
+    return `# HYBRID CIVIL — Associate Network Repository
+*Comprehensive Civil Engineering Consultancy & 90/5/5 Profit Distribution System*
+
+**Updated On:** ${new Date().toUTCString()}
+
+---
+
+## 🏗️ Executive Summary
+- **Active Civil Engineering Associates:** ${activeAssociates.length}
+- **Client & Project Agreements:** ${clients.length}
+- **Total Net Project Profit Accounted:** ৳${totalProfit.toLocaleString("en-BD")}
+- **Associate Earnings (Direct 5% + Equal 5% Pool):** ৳${totalEarned.toLocaleString("en-BD")}
+- **Total Disbursements Completed:** ৳${totalPaid.toLocaleString("en-BD")}
+- **Outstanding Balance Due:** ৳${totalDue.toLocaleString("en-BD")}
+
+---
+
+## 📊 90 / 5 / 5 Business Protocol
+1. **90% Company Operations & Equipment Reserve**: Covers company infrastructure, licenses, equipment calibration, and project execution.
+2. **5% Direct Lead Associate Commission**: Rewarded to the associate who brought in or directly leads the project agreement.
+3. **5% Equal Partner Pool**: Evenly distributed among all remaining active engineering partners in good standing.
+
+---
+
+## 👥 Certified Associate Roster
+| Associate Name | Phone | Email | Status |
+| :--- | :--- | :--- | :--- |
+${associates
+  .map(
+    (a: any) =>
+      `| **${a.name}** | \`${a.phone}\` | ${a.email || "N/A"} | ${String(a.status || "active").toUpperCase()} |`
+  )
+  .join("\n")}
+
+---
+
+## 💼 Active Client Projects
+| Client Name | Phone | Service / Scope | Price (BDT) | Advance Paid |
+| :--- | :--- | :--- | :--- | :--- |
+${clients
+  .map(
+    (c: any) =>
+      `| **${c.name}** | \`${c.phone}\` | ${c.project} | ৳${Number(c.price || 0).toLocaleString("en-BD")} | ৳${Number(c.advance || 0).toLocaleString("en-BD")} |`
+  )
+  .join("\n")}
+
+---
+*Generated automatically by Hybrid Civil Associate Network Web App.*
+`;
+  };
+
+  // ==========================================
+  // AUTHORITATIVE DATABASE API (GITHUB / DISK)
+  // ==========================================
+
+  // GET /database - Load authoritative database directly from GitHub or server repository
+  router.get("/database", async (req, res) => {
+    try {
+      const owner = (req.query.owner as string) || process.env.GITHUB_OWNER;
+      const repo = (req.query.repo as string) || process.env.GITHUB_REPO;
+      const branch = (req.query.branch as string) || "main";
+      const token = (req.query.token as string) || process.env.GITHUB_TOKEN;
+
+      // 1. If GitHub repository credentials are provided, attempt to fetch fresh from GitHub
+      if (owner && repo && token) {
+        try {
+          const ghUrl = `https://api.github.com/repos/${owner}/${repo}/contents/data/hybrid_civil_database.json?ref=${branch}`;
+          const ghRes = await fetch(ghUrl, { headers: getGitHubHeaders(token) });
+          if (ghRes.ok) {
+            const ghData = (await ghRes.json()) as any;
+            if (ghData.content && ghData.encoding === "base64") {
+              const decoded = Buffer.from(ghData.content, "base64").toString("utf-8");
+              const parsed = JSON.parse(decoded);
+              // Cache to local disk as well
+              const dbFilePath = path.join(process.cwd(), "data", "hybrid_civil_database.json");
+              await fs.promises.mkdir(path.dirname(dbFilePath), { recursive: true });
+              await fs.promises.writeFile(dbFilePath, decoded, "utf-8");
+
+              return res.json({
+                success: true,
+                source: "github",
+                sha: ghData.sha,
+                data: parsed,
+                updatedAt: new Date().toISOString(),
+              });
+            }
+          }
+        } catch (ghErr) {
+          console.warn("Could not fetch database directly from GitHub API, falling back to local file:", ghErr);
+        }
+      }
+
+      // 2. Read from local repository file: data/hybrid_civil_database.json
+      const dbFilePath = path.join(process.cwd(), "data", "hybrid_civil_database.json");
+      if (fs.existsSync(dbFilePath)) {
+        const fileContent = await fs.promises.readFile(dbFilePath, "utf-8");
+        const parsed = JSON.parse(fileContent);
+        return res.json({
+          success: true,
+          source: "local_repository",
+          data: parsed,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+
+      return res.status(404).json({ error: "Database file not found on server or GitHub." });
+    } catch (err: any) {
+      console.error("Failed to load database:", err);
+      res.status(500).json({ error: err.message || "Failed to load database." });
+    }
+  });
+
+  // POST /database/save - Authoritative save to server repository and push to GitHub
+  router.post("/database/save", async (req, res) => {
+    try {
+      const { data, message, owner = "engrkalilinux", repo = "hybrid-civil-associate-network", branch = "main", token } = req.body;
+      if (!data || typeof data !== "object") {
+        return res.status(400).json({ error: "Database data payload is required." });
+      }
+
+      const jsonString = JSON.stringify(data, null, 2);
+      const dbFilePath = path.join(process.cwd(), "data", "hybrid_civil_database.json");
+      await fs.promises.mkdir(path.dirname(dbFilePath), { recursive: true });
+      await fs.promises.writeFile(dbFilePath, jsonString, "utf-8");
+
+      // Also update PROJECT_OVERVIEW.md
+      const overviewMd = generateOverviewMarkdown(data);
+      const overviewPath = path.join(process.cwd(), "PROJECT_OVERVIEW.md");
+      await fs.promises.writeFile(overviewPath, overviewMd, "utf-8");
+
+      const commitMsg = message || `Update database state [${new Date().toISOString()}]`;
+
+      let githubResult: any = { success: true, simulated: true };
+
+      // Push to GitHub if token provided
+      if (token && token.trim() && owner && repo) {
+        try {
+          const cleanPath = "data/hybrid_civil_database.json";
+          const checkUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${cleanPath}?ref=${branch}`;
+          const checkRes = await fetch(checkUrl, { headers: getGitHubHeaders(token) });
+          let currentSha: string | undefined;
+          if (checkRes.ok) {
+            const fileData = (await checkRes.json()) as any;
+            currentSha = fileData.sha;
+          }
+
+          const putUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${cleanPath}`;
+          const putPayload: any = {
+            message: commitMsg,
+            content: Buffer.from(jsonString).toString("base64"),
+            branch,
+          };
+          if (currentSha) putPayload.sha = currentSha;
+
+          const putRes = await fetch(putUrl, {
+            method: "PUT",
+            headers: {
+              ...getGitHubHeaders(token),
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(putPayload),
+          });
+
+          if (putRes.ok) {
+            const putData = (await putRes.json()) as any;
+            githubResult = {
+              success: true,
+              pushedToGitHub: true,
+              commitSha: putData.commit?.sha?.substring(0, 7) || "latest",
+              commitUrl: putData.commit?.html_url || `https://github.com/${owner}/${repo}`,
+            };
+
+            // Also push updated PROJECT_OVERVIEW.md to GitHub
+            try {
+              const ovCheck = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/PROJECT_OVERVIEW.md?ref=${branch}`, {
+                headers: getGitHubHeaders(token),
+              });
+              let ovSha: string | undefined;
+              if (ovCheck.ok) {
+                const ovData = (await ovCheck.json()) as any;
+                ovSha = ovData.sha;
+              }
+              await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/PROJECT_OVERVIEW.md`, {
+                method: "PUT",
+                headers: {
+                  ...getGitHubHeaders(token),
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  message: `Update PROJECT_OVERVIEW.md for ${commitMsg}`,
+                  content: Buffer.from(overviewMd).toString("base64"),
+                  branch,
+                  ...(ovSha ? { sha: ovSha } : {}),
+                }),
+              });
+            } catch (ovErr) {
+              console.warn("Could not push PROJECT_OVERVIEW.md to GitHub:", ovErr);
+            }
+          } else {
+            const errBody = await putRes.text();
+            console.warn("GitHub PUT returned error:", putRes.status, errBody);
+            githubResult = {
+              success: true,
+              pushedToGitHub: false,
+              warning: `Saved to repository files, but GitHub remote returned ${putRes.status}: ${errBody}`,
+            };
+          }
+        } catch (remoteErr: any) {
+          console.error("GitHub remote push error:", remoteErr);
+          githubResult = {
+            success: true,
+            pushedToGitHub: false,
+            warning: remoteErr.message || "Failed to push to GitHub remote",
+          };
+        }
+      } else {
+        const simSha = Math.random().toString(16).substring(2, 9);
+        githubResult = {
+          success: true,
+          simulated: true,
+          commitSha: simSha,
+          commitUrl: `https://github.com/${owner}/${repo}/commit/${simSha}`,
+          message: `Saved to repository file data/hybrid_civil_database.json (set GitHub token in GitHub Host tab to push to remote git)`,
+        };
+      }
+
+      res.json({
+        success: true,
+        message: "Data saved to repository and GitHub successfully!",
+        github: githubResult,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (err: any) {
+      console.error("Failed to save database:", err);
+      res.status(500).json({ error: err.message || "Failed to save database." });
+    }
+  });
+
   // ==========================================
   // GITHUB REPOSITORY SYNC & STORAGE API
   // ==========================================

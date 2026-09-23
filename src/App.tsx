@@ -3,6 +3,7 @@ import { TabKey, Session, AppDatabase } from './types';
 import {
   loadDatabase,
   saveDatabase,
+  fetchAuthoritativeDatabase,
   loadSession,
   saveSession,
   calculateAssociateTotals,
@@ -22,8 +23,46 @@ import { LoginModal } from './components/LoginModal';
 export default function App() {
   const [db, setDb] = useState<AppDatabase>(() => loadDatabase());
   const [session, setSession] = useState<Session | null>(() => loadSession());
-
   const [currentTab, setCurrentTab] = useState<TabKey>('dashboard');
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [syncSource, setSyncSource] = useState<string>('GitHub');
+
+  // Load authoritative database directly from GitHub or repository on mount
+  useEffect(() => {
+    let isMounted = true;
+    setIsSyncing(true);
+    fetchAuthoritativeDatabase()
+      .then((result) => {
+        if (isMounted && result.success && result.data) {
+          setDb(result.data);
+          setSyncSource(result.source === 'github' ? 'GitHub Live' : 'GitHub Repo');
+        }
+      })
+      .catch((err) => {
+        console.warn('Initial GitHub sync issue:', err);
+      })
+      .finally(() => {
+        if (isMounted) setIsSyncing(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  // Manual or triggered re-sync from GitHub
+  const handleSyncDatabase = async () => {
+    setIsSyncing(true);
+    try {
+      const result = await fetchAuthoritativeDatabase();
+      if (result.success && result.data) {
+        setDb(result.data);
+        setSyncSource(result.source === 'github' ? 'GitHub Live' : 'GitHub Repo');
+      }
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   // Sync session changes
   const handleLoginSuccess = (newSession: Session) => {
@@ -37,9 +76,9 @@ export default function App() {
     saveSession(null);
   };
 
-  const handleUpdateDb = (updated: AppDatabase) => {
+  const handleUpdateDb = (updated: AppDatabase, commitMsg?: string) => {
     setDb(updated);
-    saveDatabase(updated);
+    saveDatabase(updated, commitMsg);
   };
 
   // If role is associate, ensure they cannot stay on admin-only tabs
@@ -83,6 +122,9 @@ export default function App() {
               session={session}
               onLogout={handleLogout}
               onOpenGithub={() => setCurrentTab('github')}
+              isSyncing={isSyncing}
+              onSyncDatabase={handleSyncDatabase}
+              syncSource={syncSource}
             />
 
             <NativeTabBar
