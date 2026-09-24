@@ -13,8 +13,6 @@ import {
   PieChart,
   CheckCircle2,
   AlertCircle,
-  Github,
-  UploadCloud,
   UserCircle,
   MessageSquare,
 } from 'lucide-react';
@@ -115,14 +113,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 >
                   <MessageSquare className="w-3.5 h-3.5 text-orange-400" />
                   <span>Messages</span>
-                </button>
-                <button
-                  id="dashGitHubBtn"
-                  onClick={() => onNavigate('github')}
-                  className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold border border-white/15 flex items-center gap-1.5 transition-all cursor-pointer"
-                >
-                  <UploadCloud className="w-3.5 h-3.5 text-orange-400" />
-                  <span>Save to GitHub</span>
                 </button>
               </>
             ) : (

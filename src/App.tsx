@@ -16,23 +16,15 @@ import { AssociatesView } from './components/AssociatesView';
 import { ClientsView } from './components/ClientsView';
 import { ProfitEntryView } from './components/ProfitEntryView';
 import { TransactionsView } from './components/TransactionsView';
-import { GitHubHostView } from './components/GitHubHostView';
 import { MyProfileView } from './components/MyProfileView';
 import { MessagesView } from './components/MessagesView';
 import { LoginModal } from './components/LoginModal';
-import { CheckCircle2, ArrowDownCircle, ArrowUpCircle } from 'lucide-react';
 
 export default function App() {
   const [db, setDb] = useState<AppDatabase>(() => loadDatabase());
   const [session, setSession] = useState<Session | null>(() => loadSession());
   const [currentTab, setCurrentTab] = useState<TabKey>('dashboard');
   const [syncAction, setSyncAction] = useState<'idle' | 'pulling' | 'pushing'>('idle');
-  const [syncSource, setSyncSource] = useState<string>('GitHub');
-  const [lastSyncTime, setLastSyncTime] = useState<string>('Connecting...');
-  const [syncToast, setSyncToast] = useState<{
-    text: string;
-    type: 'pull' | 'push' | 'info';
-  } | null>(null);
 
   // Synchronized refs to avoid stale closures in intervals
   const dbRef = useRef<AppDatabase>(db);
@@ -51,18 +43,7 @@ export default function App() {
     syncActionRef.current = syncAction;
   }, [syncAction]);
 
-  // Toast notification helper
-  const showSyncToast = useCallback(
-    (text: string, type: 'pull' | 'push' | 'info' = 'info') => {
-      setSyncToast({ text, type });
-      setTimeout(() => {
-        setSyncToast((prev) => (prev?.text === text ? null : prev));
-      }, 4000);
-    },
-    []
-  );
-
-  // Core pull function: pulls latest database from GitHub or local repository file
+  // Core pull function: pulls latest database in the background without UI interruption
   const pullLatestData = useCallback(
     async (isManual = false) => {
       // Avoid pulling if we're actively pushing out our own changes
@@ -77,25 +58,10 @@ export default function App() {
           const currentJson = JSON.stringify(dbRef.current);
           const incomingJson = JSON.stringify(merged);
 
-          const timeStr = new Date().toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-          });
-          setLastSyncTime(timeStr);
-          setSyncSource(result.source === 'github' ? 'GitHub Live' : 'GitHub Repo');
-
           // If content changed remotely, update page state automatically!
           if (currentJson !== incomingJson) {
-            console.log('[Auto-Pull] Remote updates detected. Updating local state.');
             setDb(merged);
             dbRef.current = merged;
-            showSyncToast(
-              isManual
-                ? '⬇️ Pulled latest updates from GitHub!'
-                : '⬇️ Auto-pulled latest changes from GitHub / Repo!',
-              'pull'
-            );
 
             // If session is an associate whose details were updated remotely, update session
             if (sessionRef.current && sessionRef.current.role === 'associate') {
@@ -116,30 +82,28 @@ export default function App() {
                 saveSession(updatedSession);
               }
             }
-          } else if (isManual) {
-            showSyncToast('Everything is up-to-date with GitHub.', 'info');
           }
         }
       } catch (err) {
-        console.warn('Auto-pull check error:', err);
+        console.warn('Background sync check error:', err);
       } finally {
         if (isManual) setSyncAction('idle');
       }
     },
-    [showSyncToast]
+    []
   );
 
-  // Auto-Pull lifecycle: On mount, every 5 seconds polling, and on window focus/visibility
+  // Auto-Pull lifecycle: On mount, every 5 seconds background polling, and on window focus/visibility
   useEffect(() => {
     // 1. Initial authoritative pull
     pullLatestData(true);
 
-    // 2. Continuous 5-second auto-pull interval
+    // 2. Continuous 5-second background sync interval
     const interval = setInterval(() => {
       pullLatestData(false);
     }, 5000);
 
-    // 3. Instant auto-pull when switching tabs or focusing window
+    // 3. Instant background pull when switching tabs or focusing window
     const handleVisibilityOrFocus = () => {
       if (document.visibilityState === 'visible') {
         pullLatestData(false);
@@ -156,40 +120,18 @@ export default function App() {
     };
   }, [pullLatestData]);
 
-  // Auto-Push on any page modification
+  // Auto-Save & Sync on any page modification (completely silent in background)
   const handleUpdateDb = async (updated: AppDatabase, commitMsg?: string) => {
     // 1. Immediately apply to local state so UI is instant and zero latency
     setDb(updated);
     dbRef.current = updated;
     setSyncAction('pushing');
 
-    // 2. Automatically push to GitHub and server repository
+    // 2. Automatically save and push to repository in background
     try {
-      const res = await saveDatabase(updated, commitMsg);
-      const timeStr = new Date().toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      });
-      setLastSyncTime(timeStr);
-
-      if (res.success) {
-        if (res.authError) {
-          showSyncToast(
-            'Saved to repository file. Note: GitHub token invalid/expired (check GitHub Host)',
-            'info'
-          );
-        } else {
-          showSyncToast(
-            `⬆️ Auto-pushed to GitHub (${res.commitSha || 'synced'})!`,
-            'push'
-          );
-        }
-      } else {
-        showSyncToast('Saved to repository file; auto-push queued.', 'info');
-      }
-    } catch {
-      showSyncToast('Saved to repository; GitHub push will retry.', 'info');
+      await saveDatabase(updated, commitMsg);
+    } catch (err) {
+      console.warn('Background save note:', err);
     } finally {
       setSyncAction('idle');
     }
@@ -212,12 +154,19 @@ export default function App() {
   // If role is associate, ensure they cannot stay on admin-only tabs
   useEffect(() => {
     if (session && session.role === 'associate') {
-      const adminTabs: TabKey[] = ['associates', 'clients', 'profit', 'github'];
+      const adminTabs: TabKey[] = ['associates', 'clients', 'profit'];
       if (adminTabs.includes(currentTab)) {
         setCurrentTab('dashboard');
       }
     }
   }, [session, currentTab]);
+
+  // If tab was previously set to 'github', default to dashboard
+  useEffect(() => {
+    if (currentTab === ('github' as TabKey)) {
+      setCurrentTab('dashboard');
+    }
+  }, [currentTab]);
 
   // Calculate pending due count for badge
   const pendingDueCount =
@@ -242,34 +191,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#f3f6fa] text-slate-800 flex flex-col font-sans select-none antialiased text-[13px] relative">
-      {/* Floating Auto-Sync Notification Toast */}
-      {syncToast && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="fixed top-3 left-1/2 -translate-x-1/2 z-50 animate-bounce transition-all shadow-xl"
-        >
-          <div
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-semibold border backdrop-blur-md ${
-              syncToast.type === 'pull'
-                ? 'bg-cyan-900/90 border-cyan-400/50 text-cyan-200 shadow-cyan-900/30'
-                : syncToast.type === 'push'
-                ? 'bg-emerald-900/90 border-emerald-400/50 text-emerald-200 shadow-emerald-900/30'
-                : 'bg-[#10243a]/90 border-orange-400/50 text-orange-200 shadow-orange-900/30'
-            }`}
-          >
-            {syncToast.type === 'pull' ? (
-              <ArrowDownCircle className="w-4 h-4 text-cyan-400 animate-pulse" />
-            ) : syncToast.type === 'push' ? (
-              <ArrowUpCircle className="w-4 h-4 text-emerald-400 animate-pulse" />
-            ) : (
-              <CheckCircle2 className="w-4 h-4 text-orange-400" />
-            )}
-            <span>{syncToast.text}</span>
-          </div>
-        </div>
-      )}
-
       {session ? (
         <>
           {/* Stacked Sticky Top Bar (Header + Navigation) */}
@@ -277,11 +198,6 @@ export default function App() {
             <NativeHeader
               session={session}
               onLogout={handleLogout}
-              onOpenGithub={() => setCurrentTab('github')}
-              syncAction={syncAction}
-              onSyncDatabase={() => pullLatestData(true)}
-              syncSource={syncSource}
-              lastSyncTime={lastSyncTime}
             />
 
             <NativeTabBar
@@ -332,10 +248,6 @@ export default function App() {
                 session={session}
                 onUpdateDb={handleUpdateDb}
               />
-            )}
-
-            {currentTab === 'github' && session.role === 'admin' && (
-              <GitHubHostView db={db} onUpdateDb={handleUpdateDb} />
             )}
 
             {currentTab === 'myprofile' && session.role === 'associate' && (

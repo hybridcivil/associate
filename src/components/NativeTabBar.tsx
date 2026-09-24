@@ -7,7 +7,6 @@ import {
   PieChart,
   Receipt,
   MessageSquare,
-  Github,
   UserCircle,
 } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -73,12 +72,6 @@ export const NativeTabBar: React.FC<NativeTabBarProps> = ({
       label: 'Messages',
       icon: MessageSquare,
       badge: unreadMessagesCount > 0 ? unreadMessagesCount : undefined,
-    },
-    {
-      id: 'github',
-      label: 'GitHub Host',
-      icon: Github,
-      adminOnly: true,
     },
     {
       id: 'myprofile',

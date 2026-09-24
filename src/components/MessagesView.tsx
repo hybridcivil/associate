@@ -4,7 +4,6 @@ import {
   generateId,
   calculateAssociateTotals,
   formatMoney,
-  loadGitHubConfig,
 } from '../utils/storage';
 import {
   MessageSquare,
@@ -32,7 +31,6 @@ import {
   Briefcase,
   Compass,
   HardHat,
-  Github,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -48,7 +46,6 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
   onUpdateDb,
 }) => {
   const isAdmin = session.role === 'admin';
-  const ghConfig = loadGitHubConfig();
 
   // Active selected thread (associateId) for Admin
   const [selectedAssociateId, setSelectedAssociateId] = useState<string>(() => {
@@ -404,13 +401,6 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               <span>Admin Desk Online</span>
             </div>
-          )}
-
-          {ghConfig.owner && ghConfig.repo && (
-            <span className="hidden sm:inline-flex items-center gap-1 text-[10.5px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">
-              <Github className="w-3 h-3 text-slate-600" />
-              <span>GitHub Auto-Sync</span>
-            </span>
           )}
         </div>
       </div>

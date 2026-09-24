@@ -4,15 +4,13 @@ import {
   LogOut,
   ShieldCheck,
   User,
-  Github,
-  Cloud,
-  RefreshCw,
+  Radio,
 } from 'lucide-react';
 
 interface NativeHeaderProps {
   session: Session;
   onLogout: () => void;
-  onOpenGithub: () => void;
+  onOpenGithub?: () => void;
   syncAction?: 'idle' | 'pulling' | 'pushing';
   onSyncDatabase?: () => void;
   syncSource?: string;
@@ -22,14 +20,8 @@ interface NativeHeaderProps {
 export const NativeHeader: React.FC<NativeHeaderProps> = ({
   session,
   onLogout,
-  onOpenGithub,
-  syncAction = 'idle',
-  onSyncDatabase,
-  syncSource = 'GitHub',
-  lastSyncTime = 'Active',
 }) => {
   const isAdmin = session.role === 'admin';
-  const isBusy = syncAction !== 'idle';
 
   return (
     <header className="bg-[#10243a]/95 backdrop-blur-md text-white border-b border-white/10 select-none shadow-md">
@@ -56,48 +48,16 @@ export const NativeHeader: React.FC<NativeHeaderProps> = ({
 
         {/* User bar & Actions */}
         <div className="flex items-center gap-2">
-          {/* GitHub Auto Pull / Push Status Pill */}
-          <button
-            id="headerSyncBtn"
-            onClick={onSyncDatabase}
-            disabled={isBusy}
-            title={`Real-Time Auto-Pull & Auto-Push with ${syncSource}. Click to manually check & pull now.`}
-            className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg border transition-all cursor-pointer ${
-              syncAction === 'pushing'
-                ? 'bg-amber-500/20 border-amber-400/40 text-amber-300 animate-pulse'
-                : syncAction === 'pulling'
-                ? 'bg-cyan-500/20 border-cyan-400/40 text-cyan-300 animate-pulse'
-                : 'bg-emerald-500/15 hover:bg-emerald-500/25 border-emerald-400/30 text-emerald-300'
-            }`}
+          {/* Live Network Status Pill */}
+          <div
+            title="Real-Time Network Sync Active"
+            className="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 select-none"
           >
-            {syncAction === 'pushing' ? (
-              <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400" />
-            ) : syncAction === 'pulling' ? (
-              <RefreshCw className="w-3.5 h-3.5 animate-spin text-cyan-400" />
-            ) : (
-              <Cloud className="w-3.5 h-3.5 text-emerald-400" />
-            )}
+            <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
             <span className="font-semibold text-[11px] hidden sm:inline">
-              {syncAction === 'pushing'
-                ? 'Auto-Pushing...'
-                : syncAction === 'pulling'
-                ? 'Auto-Pulling...'
-                : `GitHub Auto-Sync (${lastSyncTime})`}
+              Live Network
             </span>
-          </button>
-
-          {/* GitHub Host Action Pill (Admin only) */}
-          {isAdmin && (
-            <button
-              id="headerGithubBtn"
-              onClick={onOpenGithub}
-              title="GitHub Hosting & PWA Settings"
-              className="hidden md:flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg bg-white/10 hover:bg-white/15 border border-white/15 text-slate-200 transition-colors cursor-pointer"
-            >
-              <Github className="w-3.5 h-3.5 text-orange-400" />
-              <span className="font-medium text-[11px]">Repo Config</span>
-            </button>
-          )}
+          </div>
 
           {/* User Badge */}
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black/20 border border-white/10 text-xs">
