@@ -93,15 +93,16 @@ export default function App() {
     []
   );
 
-  // Auto-Pull lifecycle: On mount, every 5 seconds background polling, and on window focus/visibility
+  // Dynamic Auto-Pull lifecycle: 1.5 seconds for live messages, 4 seconds otherwise
   useEffect(() => {
     // 1. Initial authoritative pull
     pullLatestData(true);
 
-    // 2. Continuous 5-second background sync interval
+    // 2. High-frequency live sync interval (1.5 seconds in Messages tab, 4 seconds otherwise)
+    const intervalMs = currentTab === 'messages' ? 1500 : 4000;
     const interval = setInterval(() => {
       pullLatestData(false);
-    }, 5000);
+    }, intervalMs);
 
     // 3. Instant background pull when switching tabs or focusing window
     const handleVisibilityOrFocus = () => {
@@ -118,7 +119,7 @@ export default function App() {
       window.removeEventListener('focus', handleVisibilityOrFocus);
       document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
     };
-  }, [pullLatestData]);
+  }, [pullLatestData, currentTab]);
 
   // Auto-Save & Sync on any page modification (completely silent in background)
   const handleUpdateDb = async (updated: AppDatabase, commitMsg?: string) => {
@@ -247,6 +248,7 @@ export default function App() {
                 db={db}
                 session={session}
                 onUpdateDb={handleUpdateDb}
+                onPullLatest={() => pullLatestData(false)}
               />
             )}
 

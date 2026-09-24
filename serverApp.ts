@@ -272,15 +272,22 @@ ${clients
         } catch (e) {}
       }
 
-      // Merge current local with new data to prevent accidental message deletion
-      const mergedDb = mergeDatabases(currentLocalDb, data);
-      const jsonString = JSON.stringify(mergedDb, null, 2);
+      // Sanitize and validate incoming database structure
+      const validatedDb = {
+        admin: data.admin || currentLocalDb?.admin || { username: "admin", password: "admin123" },
+        associates: Array.isArray(data.associates) ? data.associates : (currentLocalDb?.associates || []),
+        clients: Array.isArray(data.clients) ? data.clients : (currentLocalDb?.clients || []),
+        transactions: Array.isArray(data.transactions) ? data.transactions : (currentLocalDb?.transactions || []),
+        payments: Array.isArray(data.payments) ? data.payments : (currentLocalDb?.payments || []),
+        messages: Array.isArray(data.messages) ? data.messages : (currentLocalDb?.messages || []),
+      };
+      const jsonString = JSON.stringify(validatedDb, null, 2);
 
       await fs.promises.mkdir(path.dirname(dbFilePath), { recursive: true });
       await fs.promises.writeFile(dbFilePath, jsonString, "utf-8");
 
       // Also update PROJECT_OVERVIEW.md
-      const overviewMd = generateOverviewMarkdown(mergedDb);
+      const overviewMd = generateOverviewMarkdown(validatedDb);
       const overviewPath = path.join(process.cwd(), "PROJECT_OVERVIEW.md");
       await fs.promises.writeFile(overviewPath, overviewMd, "utf-8");
 

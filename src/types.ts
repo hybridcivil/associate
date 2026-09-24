@@ -61,6 +61,8 @@ export interface Message {
   read: boolean;
   priority?: 'normal' | 'urgent';
   category?: 'general' | 'payment' | 'project' | 'site_visit' | 'technical';
+  isEdited?: boolean;
+  editedAt?: string;
 }
 
 export interface AppDatabase {

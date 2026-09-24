@@ -31,6 +31,8 @@ import {
   Briefcase,
   Compass,
   HardHat,
+  Pencil,
+  X,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -38,6 +40,7 @@ interface MessagesViewProps {
   db: AppDatabase;
   session: Session;
   onUpdateDb: (updated: AppDatabase, commitMsg?: string) => void;
+  onPullLatest?: () => Promise<void> | void;
 }
 
 export const MessagesView: React.FC<MessagesViewProps> = ({
@@ -91,6 +94,53 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
     text: string;
     type: 'success' | 'error';
   } | null>(null);
+
+  // Live Inline Editing states
+  const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState<string>('');
+
+  const startEditing = (msg: Message) => {
+    setEditingMsgId(msg.id);
+    setEditingContent(msg.content);
+  };
+
+  const cancelEditing = () => {
+    setEditingMsgId(null);
+    setEditingContent('');
+  };
+
+  const handleSaveEdit = (msgId: string) => {
+    if (!editingContent.trim()) return;
+    const targetMsg = (db.messages || []).find((m) => m.id === msgId);
+    if (!targetMsg) return;
+
+    const canEdit =
+      isAdmin ||
+      (targetMsg.senderRole === 'associate' &&
+        (targetMsg.senderId === session.id || targetMsg.associateId === session.id));
+    if (!canEdit) return;
+
+    const updatedMessages = (db.messages || []).map((m) => {
+      if (m.id === msgId) {
+        return {
+          ...m,
+          content: editingContent.trim(),
+          isEdited: true,
+          editedAt: new Date().toISOString(),
+        };
+      }
+      return m;
+    });
+
+    const updatedDb: AppDatabase = { ...db, messages: updatedMessages };
+    onUpdateDb(
+      updatedDb,
+      `Edit message ${msgId} by ${isAdmin ? 'Admin' : session.name}`
+    );
+    setEditingMsgId(null);
+    setEditingContent('');
+    showNotice('Message updated successfully.', 'success');
+  };
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -293,15 +343,26 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
     );
   };
 
-  // Delete message (Admin only)
+  // Delete message (Admin or Sender Associate)
   const handleDeleteMessage = (msgId: string) => {
-    if (!isAdmin) return;
-    if (!confirm('Are you sure you want to delete this message record?')) return;
+    const targetMsg = (db.messages || []).find((m) => m.id === msgId);
+    if (!targetMsg) return;
+
+    const canDelete =
+      isAdmin ||
+      (targetMsg.senderRole === 'associate' &&
+        (targetMsg.senderId === session.id || targetMsg.associateId === session.id));
+    if (!canDelete) return;
+
+    if (!confirm('Are you sure you want to delete this message?')) return;
 
     const updatedMessages = (db.messages || []).filter((m) => m.id !== msgId);
     const updatedDb = { ...db, messages: updatedMessages };
-    onUpdateDb(updatedDb, `Delete message ${msgId} by Administrator`);
-    showNotice('Message removed from thread.', 'success');
+    onUpdateDb(
+      updatedDb,
+      `Delete message ${msgId} by ${isAdmin ? 'Admin' : session.name}`
+    );
+    showNotice('Message deleted successfully.', 'success');
   };
 
   // Admin: Associates thread list with unread counter and search filter
@@ -383,6 +444,10 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
         <div className="flex items-center gap-2">
           {isAdmin ? (
             <div className="flex items-center gap-1.5">
+              <span className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10.5px] font-semibold border border-emerald-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Live Chat
+              </span>
               {totalUnreadForAdmin > 0 && (
                 <span className="px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 text-[10.5px] font-bold border border-orange-200 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
@@ -397,9 +462,11 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
               )}
             </div>
           ) : (
-            <div className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10.5px] font-semibold border border-emerald-200">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Admin Desk Online</span>
+            <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10.5px] font-semibold border border-emerald-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span>Live Chat Active</span>
+              </div>
             </div>
           )}
         </div>
@@ -644,6 +711,15 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                   ? msg.senderRole === 'admin'
                   : msg.senderRole === 'associate';
 
+                const canEdit =
+                  isAdmin ||
+                  (msg.senderRole === 'associate' &&
+                    (msg.senderId === session.id || msg.associateId === session.id));
+                const canDelete =
+                  isAdmin ||
+                  (msg.senderRole === 'associate' &&
+                    (msg.senderId === session.id || msg.associateId === session.id));
+
                 return (
                   <motion.div
                     key={msg.id}
@@ -688,46 +764,107 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                           : 'bg-white text-slate-800 border border-slate-200/90 rounded-tl-xs'
                       }`}
                     >
-                      {msg.subject && (
-                        <div
-                          className={`font-bold mb-1 pb-1 border-b text-[11.5px] ${
-                            isFromMe
-                              ? 'border-white/15 text-orange-300'
-                              : 'border-slate-100 text-[#10243a]'
-                          }`}
-                        >
-                          {msg.subject}
+                      {editingMsgId === msg.id ? (
+                        <div className="w-full space-y-2 py-0.5 min-w-[200px] sm:min-w-[260px]">
+                          <textarea
+                            value={editingContent}
+                            onChange={(e) => setEditingContent(e.target.value)}
+                            rows={3}
+                            className={`w-full p-2 text-xs rounded-lg border outline-none resize-none ${
+                              isFromMe
+                                ? 'bg-slate-900 text-white border-white/30 focus:border-orange-400'
+                                : 'bg-white text-slate-800 border-slate-300 focus:border-orange-500'
+                            }`}
+                            placeholder="Edit message..."
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                                e.preventDefault();
+                                handleSaveEdit(msg.id);
+                              } else if (e.key === 'Escape') {
+                                cancelEditing();
+                              }
+                            }}
+                          />
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={cancelEditing}
+                              className="px-2 py-1 text-[10.5px] rounded bg-slate-500/20 hover:bg-slate-500/30 text-slate-300 flex items-center gap-1 transition-colors cursor-pointer"
+                            >
+                              <X className="w-3 h-3" /> Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleSaveEdit(msg.id)}
+                              className="px-2.5 py-1 text-[10.5px] font-semibold rounded bg-[#f28c28] hover:bg-[#e07f20] text-white flex items-center gap-1 shadow-xs transition-colors cursor-pointer"
+                            >
+                              <Check className="w-3 h-3" /> Save
+                            </button>
+                          </div>
                         </div>
+                      ) : (
+                        <>
+                          {msg.subject && (
+                            <div
+                              className={`font-bold mb-1 pb-1 border-b text-[11.5px] ${
+                                isFromMe
+                                  ? 'border-white/15 text-orange-300'
+                                  : 'border-slate-100 text-[#10243a]'
+                              }`}
+                            >
+                              {msg.subject}
+                            </div>
+                          )}
+
+                          <p className="whitespace-pre-wrap leading-relaxed select-text text-[12px]">
+                            {msg.content}
+                          </p>
+
+                          <div className="flex items-center justify-end gap-1.5 mt-1 text-[9.5px]">
+                            {msg.isEdited && (
+                              <span className="italic opacity-60 text-[9px] mr-1">
+                                (edited)
+                              </span>
+                            )}
+
+                            {isFromMe ? (
+                              msg.read ? (
+                                <span className="flex items-center gap-0.5 text-emerald-400 opacity-80">
+                                  <CheckCheck className="w-3 h-3" /> Read
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-0.5 text-slate-300 opacity-80">
+                                  <Check className="w-3 h-3" /> Sent
+                                </span>
+                              )
+                            ) : null}
+
+                            {/* Action buttons (Edit & Delete) */}
+                            {canEdit && (
+                              <button
+                                type="button"
+                                onClick={() => startEditing(msg)}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 hover:text-orange-400 ml-1.5 p-0.5 cursor-pointer"
+                                title="Edit message"
+                              >
+                                <Pencil className="w-3 h-3" />
+                              </button>
+                            )}
+
+                            {canDelete && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteMessage(msg.id)}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity text-rose-400 hover:text-rose-500 ml-1 p-0.5 cursor-pointer"
+                                title="Delete message"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                        </>
                       )}
-
-                      <p className="whitespace-pre-wrap leading-relaxed select-text text-[12px]">
-                        {msg.content}
-                      </p>
-
-                      <div className="flex items-center justify-end gap-1 mt-1 text-[9.5px] opacity-75">
-                        {isFromMe ? (
-                          msg.read ? (
-                            <span className="flex items-center gap-0.5 text-emerald-400">
-                              <CheckCheck className="w-3 h-3" /> Read
-                            </span>
-                          ) : (
-                            <span className="flex items-center gap-0.5 text-slate-300">
-                              <Check className="w-3 h-3" /> Sent
-                            </span>
-                          )
-                        ) : null}
-
-                        {isAdmin && (
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteMessage(msg.id)}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity text-rose-400 hover:text-rose-500 ml-2 p-0.5"
-                            title="Delete message"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        )}
-                      </div>
                     </div>
                   </motion.div>
                 );

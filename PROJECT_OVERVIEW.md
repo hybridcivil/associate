@@ -1,12 +1,12 @@
 # HYBRID CIVIL — Associate Network Repository
 *Comprehensive Civil Engineering Consultancy & 90/5/5 Profit Distribution System*
 
-**Updated On:** Thu, 24 Sep 2026 08:29:22 GMT
+**Updated On:** Thu, 24 Sep 2026 08:37:43 GMT
 
 ---
 
 ## 🏗️ Executive Summary
-- **Active Civil Engineering Associates:** 5
+- **Active Civil Engineering Associates:** 6
 - **Client & Project Agreements:** 2
 - **Total Net Project Profit Accounted:** ৳240,000
 - **Associate Earnings (Direct 5% + Equal 5% Pool):** ৳24,000
@@ -30,6 +30,7 @@
 | **Engr. Rakibul Hasan** | `01933000333` | rakibul@hybridcivil.net | ACTIVE |
 | **Ar. Farhana Kabir** | `01644000444` | farhana.design@hybridcivil.net | ACTIVE |
 | **xyz** | `2207` | ffg@gg.com | ACTIVE |
+| **adf** | `1234` | vhhh@g.com | ACTIVE |
 
 ---
 

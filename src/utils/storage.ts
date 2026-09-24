@@ -452,18 +452,23 @@ export async function fetchAuthoritativeDatabase(): Promise<{
           json.data.payments = [];
         }
 
-        // Merge incoming authoritative data with current local cached data to guarantee no messages are ever lost
-        const currentLocal = loadDatabase();
-        const merged = mergeDatabases(currentLocal, json.data);
+        const authoritativeData: AppDatabase = {
+          admin: json.data.admin || INITIAL_DATA.admin,
+          associates: Array.isArray(json.data.associates) ? json.data.associates : [],
+          clients: Array.isArray(json.data.clients) ? json.data.clients : [],
+          transactions: Array.isArray(json.data.transactions) ? json.data.transactions : [],
+          payments: Array.isArray(json.data.payments) ? json.data.payments : [],
+          messages: Array.isArray(json.data.messages) ? json.data.messages : [],
+        };
 
         // Cache locally for offline resilience
         try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(authoritativeData));
         } catch (e) {}
 
         return {
           success: true,
-          data: merged,
+          data: authoritativeData,
           source: json.source || 'github',
           sha: json.sha,
         };
