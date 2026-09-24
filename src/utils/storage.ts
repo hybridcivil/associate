@@ -435,7 +435,15 @@ export async function fetchAuthoritativeDatabase(): Promise<{
     if (config?.branch) params.set('branch', config.branch);
     if (config?.token) params.set('token', config.token);
 
-    const res = await fetch(`/api/database?${params.toString()}`);
+    params.set('_t', Date.now().toString());
+
+    const res = await fetch(`/api/database?${params.toString()}`, {
+      cache: 'no-store',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+      },
+    });
     if (res.ok) {
       const json = await res.json();
       if (json && json.data && Array.isArray(json.data.associates)) {
@@ -646,6 +654,40 @@ export function saveGitHubLogs(logs: GitHubCommitLog[]) {
   try {
     localStorage.setItem(GITHUB_LOGS_KEY, JSON.stringify(logs.slice(0, 30)));
   } catch (e) {}
+}
+
+export async function fetchServerGitHubConfig(): Promise<{
+  owner: string;
+  repo: string;
+  branch: string;
+  hasToken: boolean;
+  tokenMasked: string | null;
+}> {
+  try {
+    const res = await fetch(`/api/github/config?_t=${Date.now()}`, { cache: 'no-store' });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (e) {}
+  return { owner: 'hybridcivil', repo: 'associate', branch: 'main', hasToken: false, tokenMasked: null };
+}
+
+export async function saveServerGitHubConfig(payload: {
+  owner?: string;
+  repo?: string;
+  branch?: string;
+  token?: string;
+}): Promise<boolean> {
+  try {
+    const res = await fetch('/api/github/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return res.ok;
+  } catch (e) {
+    return false;
+  }
 }
 
 /**

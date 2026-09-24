@@ -11,6 +11,7 @@ interface NativeHeaderProps {
   session: Session;
   onLogout: () => void;
   onOpenGithub?: () => void;
+  onOpenSyncSettings?: () => void;
   syncAction?: 'idle' | 'pulling' | 'pushing';
   onSyncDatabase?: () => void;
   syncSource?: string;
@@ -20,6 +21,8 @@ interface NativeHeaderProps {
 export const NativeHeader: React.FC<NativeHeaderProps> = ({
   session,
   onLogout,
+  onOpenSyncSettings,
+  syncAction,
 }) => {
   const isAdmin = session.role === 'admin';
 
@@ -49,15 +52,29 @@ export const NativeHeader: React.FC<NativeHeaderProps> = ({
         {/* User bar & Actions */}
         <div className="flex items-center gap-2">
           {/* Live Network Status Pill */}
-          <div
-            title="Real-Time Network Sync Active"
-            className="flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 select-none"
+          <button
+            type="button"
+            onClick={isAdmin ? onOpenSyncSettings : undefined}
+            title={
+              isAdmin
+                ? 'Real-Time Auto Push & Pull Active. Click to configure sync & repository token.'
+                : 'Real-Time Network Sync Active'
+            }
+            className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 select-none transition-all ${
+              isAdmin
+                ? 'hover:bg-emerald-500/25 hover:border-emerald-400/50 cursor-pointer active:scale-95'
+                : 'cursor-default'
+            }`}
           >
-            <Radio className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+            <Radio
+              className={`w-3.5 h-3.5 text-emerald-400 ${
+                syncAction === 'pushing' || syncAction === 'pulling' ? 'animate-spin' : 'animate-pulse'
+              }`}
+            />
             <span className="font-semibold text-[11px] hidden sm:inline">
               Live Network
             </span>
-          </div>
+          </button>
 
           {/* User Badge */}
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black/20 border border-white/10 text-xs">

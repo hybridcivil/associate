@@ -184,17 +184,54 @@ ${clients
     };
   };
 
+  // Helper for server-side GitHub configuration
+  const GITHUB_CONFIG_FILE = path.join(process.cwd(), "data", "github_config.json");
+  let lastKnownGitHubSha: string | null = null;
+  let hasLocalUnpushedChanges: boolean = false;
+
+  const getServerGitHubConfig = (): { owner: string; repo: string; branch: string; token: string } => {
+    let config = {
+      owner: process.env.GITHUB_OWNER || "hybridcivil",
+      repo: process.env.GITHUB_REPO || "associate",
+      branch: process.env.GITHUB_BRANCH || "main",
+      token: process.env.GITHUB_TOKEN || "",
+    };
+    if (fs.existsSync(GITHUB_CONFIG_FILE)) {
+      try {
+        const raw = fs.readFileSync(GITHUB_CONFIG_FILE, "utf-8");
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+          config = { ...config, ...parsed };
+        }
+      } catch {}
+    }
+    return config;
+  };
+
+  const saveServerGitHubConfig = async (newConfig: Partial<{ owner: string; repo: string; branch: string; token: string }>) => {
+    const current = getServerGitHubConfig();
+    const merged = { ...current, ...newConfig };
+    await fs.promises.mkdir(path.dirname(GITHUB_CONFIG_FILE), { recursive: true });
+    await fs.promises.writeFile(GITHUB_CONFIG_FILE, JSON.stringify(merged, null, 2), "utf-8");
+    return merged;
+  };
+
   // ==========================================
   // AUTHORITATIVE DATABASE API (GITHUB / DISK)
   // ==========================================
 
-  // GET /database - Load authoritative database directly from GitHub or server repository with smart merging
+  // GET /database - Load authoritative database directly from local repository or GitHub
   router.get("/database", async (req, res) => {
     try {
-      const owner = (req.query.owner as string) || process.env.GITHUB_OWNER;
-      const repo = (req.query.repo as string) || process.env.GITHUB_REPO;
-      const branch = (req.query.branch as string) || "main";
-      const token = (req.query.token as string) || process.env.GITHUB_TOKEN;
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+      res.setHeader("Pragma", "no-cache");
+      res.setHeader("Expires", "0");
+
+      const serverConfig = getServerGitHubConfig();
+      const owner = (req.query.owner as string) || serverConfig.owner || "hybridcivil";
+      const repo = (req.query.repo as string) || serverConfig.repo || "associate";
+      const branch = (req.query.branch as string) || serverConfig.branch || "main";
+      const token = (req.query.token as string) || serverConfig.token || "";
 
       const dbFilePath = path.join(process.cwd(), "data", "hybrid_civil_database.json");
       let localDb: any = null;
@@ -205,32 +242,35 @@ ${clients
         } catch (e) {}
       }
 
-      // 1. If GitHub repository credentials are provided, attempt to fetch fresh from GitHub and MERGE
-      if (owner && repo && token) {
+      // 1. If local database doesn't exist, OR if we don't have pending unpushed local changes, check GitHub
+      if (owner && repo && (!localDb || !hasLocalUnpushedChanges)) {
         try {
           const ghUrl = `https://api.github.com/repos/${owner}/${repo}/contents/data/hybrid_civil_database.json?ref=${branch}`;
           const ghRes = await fetch(ghUrl, { headers: getGitHubHeaders(token) });
           if (ghRes.ok) {
             const ghData = (await ghRes.json()) as any;
             if (ghData.content && ghData.encoding === "base64") {
+              const remoteSha = ghData.sha;
               const decoded = Buffer.from(ghData.content, "base64").toString("utf-8");
               const remoteParsed = JSON.parse(decoded);
 
-              // Smart merge so local messages are NEVER wiped out by older remote copies
-              const mergedDb = mergeDatabases(localDb, remoteParsed);
-              const mergedJson = JSON.stringify(mergedDb, null, 2);
+              // If this is initial load OR GitHub SHA has changed from outside
+              if (!localDb || (lastKnownGitHubSha && remoteSha !== lastKnownGitHubSha)) {
+                lastKnownGitHubSha = remoteSha;
+                hasLocalUnpushedChanges = false;
+                await fs.promises.mkdir(path.dirname(dbFilePath), { recursive: true });
+                await fs.promises.writeFile(dbFilePath, JSON.stringify(remoteParsed, null, 2), "utf-8");
 
-              // Cache to local disk as well
-              await fs.promises.mkdir(path.dirname(dbFilePath), { recursive: true });
-              await fs.promises.writeFile(dbFilePath, mergedJson, "utf-8");
-
-              return res.json({
-                success: true,
-                source: "github_merged",
-                sha: ghData.sha,
-                data: mergedDb,
-                updatedAt: new Date().toISOString(),
-              });
+                return res.json({
+                  success: true,
+                  source: "github",
+                  sha: remoteSha,
+                  data: remoteParsed,
+                  updatedAt: new Date().toISOString(),
+                });
+              } else if (!lastKnownGitHubSha) {
+                lastKnownGitHubSha = remoteSha;
+              }
             }
           }
         } catch (ghErr) {
@@ -243,6 +283,7 @@ ${clients
         return res.json({
           success: true,
           source: "local_repository",
+          sha: lastKnownGitHubSha || "local",
           data: localDb,
           updatedAt: new Date().toISOString(),
         });
@@ -255,10 +296,20 @@ ${clients
     }
   });
 
-  // POST /database/save - Authoritative save to server repository and push to GitHub with smart merging
+  // POST /database/save - Authoritative save to server repository and push to GitHub
   router.post("/database/save", async (req, res) => {
     try {
-      const { data, message, owner = "hybridcivil", repo = "associate", branch = "main", token } = req.body;
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+      const serverConfig = getServerGitHubConfig();
+      const {
+        data,
+        message,
+        owner = serverConfig.owner || "hybridcivil",
+        repo = serverConfig.repo || "associate",
+        branch = serverConfig.branch || "main",
+        token = serverConfig.token || "",
+      } = req.body;
+
       if (!data || typeof data !== "object") {
         return res.status(400).json({ error: "Database data payload is required." });
       }
@@ -285,6 +336,7 @@ ${clients
 
       await fs.promises.mkdir(path.dirname(dbFilePath), { recursive: true });
       await fs.promises.writeFile(dbFilePath, jsonString, "utf-8");
+      hasLocalUnpushedChanges = true;
 
       // Also update PROJECT_OVERVIEW.md
       const overviewMd = generateOverviewMarkdown(validatedDb);
@@ -294,13 +346,14 @@ ${clients
       const commitMsg = message || `Update database state [${new Date().toISOString()}]`;
 
       let githubResult: any = { success: true, simulated: true };
+      const effectiveToken = (token && token.trim()) || serverConfig.token;
 
-      // Push to GitHub if token provided
-      if (token && token.trim() && owner && repo) {
+      // Push to GitHub if token provided or configured
+      if (effectiveToken && effectiveToken.trim() && owner && repo) {
         try {
           const cleanPath = "data/hybrid_civil_database.json";
           const checkUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${cleanPath}?ref=${branch}`;
-          const checkRes = await fetch(checkUrl, { headers: getGitHubHeaders(token) });
+          const checkRes = await fetch(checkUrl, { headers: getGitHubHeaders(effectiveToken) });
 
           // If token returned 401 Unauthorized, handle gracefully and inform frontend
           if (checkRes.status === 401) {
@@ -328,7 +381,7 @@ ${clients
             const putRes = await fetch(putUrl, {
               method: "PUT",
               headers: {
-                ...getGitHubHeaders(token),
+                ...getGitHubHeaders(effectiveToken),
                 "Content-Type": "application/json",
               },
               body: JSON.stringify(putPayload),
@@ -336,6 +389,9 @@ ${clients
 
             if (putRes.ok) {
               const putData = (await putRes.json()) as any;
+              lastKnownGitHubSha = putData.content?.sha || putData.commit?.sha || null;
+              hasLocalUnpushedChanges = false;
+
               githubResult = {
                 success: true,
                 pushedToGitHub: true,
@@ -346,7 +402,7 @@ ${clients
               // Also push updated PROJECT_OVERVIEW.md to GitHub
               try {
                 const ovCheck = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/PROJECT_OVERVIEW.md?ref=${branch}`, {
-                  headers: getGitHubHeaders(token),
+                  headers: getGitHubHeaders(effectiveToken),
                 });
                 let ovSha: string | undefined;
                 if (ovCheck.ok) {
@@ -356,7 +412,7 @@ ${clients
                 await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/PROJECT_OVERVIEW.md`, {
                   method: "PUT",
                   headers: {
-                    ...getGitHubHeaders(token),
+                    ...getGitHubHeaders(effectiveToken),
                     "Content-Type": "application/json",
                   },
                   body: JSON.stringify({
@@ -395,7 +451,7 @@ ${clients
           simulated: true,
           commitSha: simSha,
           commitUrl: `https://github.com/${owner}/${repo}/commit/${simSha}`,
-          message: `Saved to repository file data/hybrid_civil_database.json (set GitHub token in GitHub Host tab to push to remote git)`,
+          message: `Saved to repository file data/hybrid_civil_database.json (set GitHub token in Network Settings to push to remote git)`,
         };
       }
 
@@ -408,6 +464,42 @@ ${clients
     } catch (err: any) {
       console.error("Failed to save database:", err);
       res.status(500).json({ error: err.message || "Failed to save database." });
+    }
+  });
+
+  // GET /github/config - Return current sync configuration status
+  router.get("/github/config", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    const config = getServerGitHubConfig();
+    res.json({
+      success: true,
+      owner: config.owner,
+      repo: config.repo,
+      branch: config.branch,
+      hasToken: !!config.token,
+      tokenMasked: config.token ? `${config.token.substring(0, 4)}...${config.token.substring(config.token.length - 4)}` : null,
+    });
+  });
+
+  // POST /github/config - Save GitHub configuration and token
+  router.post("/github/config", async (req, res) => {
+    try {
+      const { owner, repo, branch, token } = req.body;
+      const updated = await saveServerGitHubConfig({
+        ...(owner ? { owner } : {}),
+        ...(repo ? { repo } : {}),
+        ...(branch ? { branch } : {}),
+        ...(token !== undefined ? { token } : {}),
+      });
+      res.json({
+        success: true,
+        owner: updated.owner,
+        repo: updated.repo,
+        branch: updated.branch,
+        hasToken: !!updated.token,
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to save GitHub config." });
     }
   });
 

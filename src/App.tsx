@@ -4,7 +4,6 @@ import {
   loadDatabase,
   saveDatabase,
   fetchAuthoritativeDatabase,
-  mergeDatabases,
   loadSession,
   saveSession,
   calculateAssociateTotals,
@@ -19,12 +18,14 @@ import { TransactionsView } from './components/TransactionsView';
 import { MyProfileView } from './components/MyProfileView';
 import { MessagesView } from './components/MessagesView';
 import { LoginModal } from './components/LoginModal';
+import { SyncSettingsModal } from './components/SyncSettingsModal';
 
 export default function App() {
   const [db, setDb] = useState<AppDatabase>(() => loadDatabase());
   const [session, setSession] = useState<Session | null>(() => loadSession());
   const [currentTab, setCurrentTab] = useState<TabKey>('dashboard');
   const [syncAction, setSyncAction] = useState<'idle' | 'pulling' | 'pushing'>('idle');
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
 
   // Synchronized refs to avoid stale closures in intervals
   const dbRef = useRef<AppDatabase>(db);
@@ -53,19 +54,17 @@ export default function App() {
       try {
         const result = await fetchAuthoritativeDatabase();
         if (result.success && result.data) {
-          // Smart merge ensures local un-synced messages or records are never wiped out
-          const merged = mergeDatabases(dbRef.current, result.data);
           const currentJson = JSON.stringify(dbRef.current);
-          const incomingJson = JSON.stringify(merged);
+          const incomingJson = JSON.stringify(result.data);
 
           // If content changed remotely, update page state automatically!
           if (currentJson !== incomingJson) {
-            setDb(merged);
-            dbRef.current = merged;
+            setDb(result.data);
+            dbRef.current = result.data;
 
             // If session is an associate whose details were updated remotely, update session
             if (sessionRef.current && sessionRef.current.role === 'associate') {
-              const currentAssoc = merged.associates.find(
+              const currentAssoc = result.data.associates.find(
                 (a) => a.id === sessionRef.current?.id
               );
               if (
@@ -93,13 +92,13 @@ export default function App() {
     []
   );
 
-  // Dynamic Auto-Pull lifecycle: 1.5 seconds for live messages, 4 seconds otherwise
+  // Dynamic Auto-Pull lifecycle: 1.5s in Messages, 2.5s elsewhere
   useEffect(() => {
     // 1. Initial authoritative pull
     pullLatestData(true);
 
-    // 2. High-frequency live sync interval (1.5 seconds in Messages tab, 4 seconds otherwise)
-    const intervalMs = currentTab === 'messages' ? 1500 : 4000;
+    // 2. High-frequency live sync interval (1.5 seconds in Messages tab, 2.5 seconds otherwise)
+    const intervalMs = currentTab === 'messages' ? 1500 : 2500;
     const interval = setInterval(() => {
       pullLatestData(false);
     }, intervalMs);
@@ -199,6 +198,8 @@ export default function App() {
             <NativeHeader
               session={session}
               onLogout={handleLogout}
+              onOpenSyncSettings={() => setIsSyncModalOpen(true)}
+              syncAction={syncAction}
             />
 
             <NativeTabBar
@@ -260,6 +261,20 @@ export default function App() {
               />
             )}
           </main>
+
+          {isSyncModalOpen && (
+            <SyncSettingsModal
+              isOpen={isSyncModalOpen}
+              onClose={() => setIsSyncModalOpen(false)}
+              db={db}
+              onForceSync={async () => {
+                await pullLatestData(true);
+              }}
+              onForcePush={async () => {
+                await handleUpdateDb(db, 'Force sync push to repository');
+              }}
+            />
+          )}
         </>
       ) : (
         <LoginModal db={db} onLoginSuccess={handleLoginSuccess} />
