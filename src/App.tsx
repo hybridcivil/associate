@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { TabKey, Session, AppDatabase } from './types';
+import { TabKey, Session, AppDatabase, SaveStatus } from './types';
 import {
   loadDatabase,
   saveDatabase,
@@ -25,6 +25,7 @@ export default function App() {
   const [session, setSession] = useState<Session | null>(() => loadSession());
   const [currentTab, setCurrentTab] = useState<TabKey>('dashboard');
   const [syncAction, setSyncAction] = useState<'idle' | 'pulling' | 'pushing'>('idle');
+  const [saveStatus, setSaveStatus] = useState<SaveStatus | null>(null);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
 
   // Synchronized refs to avoid stale closures in intervals
@@ -128,7 +129,7 @@ export default function App() {
   }, [pullLatestData, currentTab]);
 
   // Auto-Save & Sync on any page modification (completely silent in background)
-  const handleUpdateDb = async (updated: AppDatabase, commitMsg?: string) => {
+  const handleUpdateDb = async (updated: AppDatabase, commitMsg?: string): Promise<SaveStatus> => {
     // 1. Immediately apply to local state so UI is instant and zero latency
     lastLocalSaveTimeRef.current = Date.now();
     setDb(updated);
@@ -136,13 +137,27 @@ export default function App() {
     setSyncAction('pushing');
 
     // 2. Automatically save and push to repository in background
+    let statusResult: SaveStatus = {
+      success: true,
+      localSaved: true,
+      githubSaved: false,
+    };
     try {
-      await saveDatabase(updated, commitMsg);
-    } catch (err) {
+      statusResult = await saveDatabase(updated, commitMsg);
+      setSaveStatus(statusResult);
+    } catch (err: any) {
       console.warn('Background save note:', err);
+      statusResult = {
+        success: true,
+        localSaved: true,
+        githubSaved: false,
+        warning: err.message,
+      };
+      setSaveStatus(statusResult);
     } finally {
       setSyncAction('idle');
     }
+    return statusResult;
   };
 
   // Sync session changes
@@ -208,6 +223,7 @@ export default function App() {
               onLogout={handleLogout}
               onOpenSyncSettings={() => setIsSyncModalOpen(true)}
               syncAction={syncAction}
+              saveStatus={saveStatus}
             />
 
             <NativeTabBar

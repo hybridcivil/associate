@@ -8,6 +8,7 @@ import {
   Message,
   GitHubConfig,
   GitHubCommitLog,
+  SaveStatus,
 } from '../types';
 
 export const STORAGE_KEY = 'hybridCivilAssociateNetwork_v2';
@@ -15,7 +16,7 @@ export const SESSION_KEY = 'hybridCivilSession_auth';
 export const GITHUB_CONFIG_KEY = 'hybridCivilGitHubConfig_v1';
 export const GITHUB_LOGS_KEY = 'hybridCivilGitHubLogs_v1';
 
-export type { AppDatabase };
+export type { AppDatabase, SaveStatus };
 
 export function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
@@ -433,7 +434,7 @@ export async function fetchAuthoritativeDatabase(forcePull: boolean = false): Pr
     if (config?.owner) params.set('owner', config.owner);
     if (config?.repo) params.set('repo', config.repo);
     if (config?.branch) params.set('branch', config.branch);
-    if (config?.token) params.set('token', config.token);
+    // Note: Do NOT expose the token in URL query strings! The server uses server-side configured token.
     if (forcePull) params.set('forcePull', 'true');
 
     params.set('_t', Date.now().toString());
@@ -496,17 +497,11 @@ export async function fetchAuthoritativeDatabase(forcePull: boolean = false): Pr
 
 /**
  * Saves database directly to GitHub and server repository.
- * Also keeps an offline backup in localStorage.
+ * Merges with authoritative GitHub database, handles conflict resolution,
+ * and reports accurate local vs. GitHub save status.
  */
-export async function saveDatabase(data: AppDatabase, commitMessage?: string): Promise<{
-  success: boolean;
-  commitSha?: string;
-  commitUrl?: string;
-  message?: string;
-  authError?: boolean;
-  warning?: string;
-}> {
-  // 1. Instant local cache update so UI is immediately updated
+export async function saveDatabase(data: AppDatabase, commitMessage?: string): Promise<SaveStatus> {
+  // 1. Instant local cache update so UI is immediately responsive
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   } catch (e) {
@@ -525,44 +520,68 @@ export async function saveDatabase(data: AppDatabase, commitMessage?: string): P
         owner: config?.owner || 'hybridcivil',
         repo: config?.repo || 'associate',
         branch: config?.branch || 'main',
-        token: config?.token || '',
       }),
     });
 
     if (res.ok) {
       const json = await res.json();
-      if (json.success && json.github?.commitSha) {
+      const isGithubSaved = Boolean(json.githubSaved ?? json.github?.pushedToGitHub ?? false);
+      const commitSha = json.githubCommitSha || json.github?.commitSha || null;
+      const commitUrl = json.githubCommitUrl || json.github?.commitUrl || null;
+
+      if (isGithubSaved && commitSha) {
         const newLog: GitHubCommitLog = {
           id: 'log-' + Date.now(),
-          sha: json.github.commitSha,
+          sha: commitSha,
           message: commitMessage || 'Auto-sync database to GitHub repository',
           action: 'update',
           filePath: 'data/hybrid_civil_database.json',
           date: new Date().toISOString(),
           status: 'success',
-          htmlUrl: json.github.commitUrl,
+          htmlUrl: commitUrl || undefined,
           author: config?.owner || 'hybridcivil',
         };
         const existing = loadGitHubLogs();
         saveGitHubLogs([newLog, ...existing]);
       }
+
+      // If server returned merged data, update localStorage cache
+      if (json.data && Array.isArray(json.data.messages)) {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(json.data));
+        } catch (e) {}
+      }
+
       return {
         success: true,
-        commitSha: json.github?.commitSha,
-        commitUrl: json.github?.commitUrl,
-        message: json.message || 'Auto-pushed to GitHub repository',
-        authError: json.github?.authError,
-        warning: json.github?.warning,
+        localSaved: Boolean(json.localSaved ?? true),
+        githubSaved: isGithubSaved,
+        githubCommitSha: commitSha,
+        githubCommitUrl: commitUrl,
+        warning: json.warning,
+        error: json.error,
+        authError: json.authError || json.github?.authError,
+        message: isGithubSaved ? 'Synced to GitHub' : 'Saved locally',
+      };
+    } else {
+      const errJson = await res.json().catch(() => ({}));
+      return {
+        success: false,
+        localSaved: false,
+        githubSaved: false,
+        error: errJson.error || `Server returned error ${res.status}`,
+        message: 'Save failed',
       };
     }
   } catch (err: any) {
     return {
-      success: false,
-      message: err.message || 'Saved locally, GitHub sync failed',
+      success: true, // Local cache was saved in step 1
+      localSaved: true,
+      githubSaved: false,
+      warning: err.message || 'Server connection failed',
+      message: 'Saved locally',
     };
   }
-
-  return { success: false, message: 'Saved to local cache' };
 }
 
 export function loadSession(): Session | null {
@@ -628,7 +647,10 @@ export function loadGitHubConfig(): GitHubConfig {
 
 export function saveGitHubConfig(config: GitHubConfig) {
   try {
-    localStorage.setItem(GITHUB_CONFIG_KEY, JSON.stringify(config));
+    // CRITICAL: Do NOT store the personal access token in localStorage!
+    // Stored securely on server-side only in data/github_config.json
+    const safeConfig = { ...config, token: '' };
+    localStorage.setItem(GITHUB_CONFIG_KEY, JSON.stringify(safeConfig));
   } catch (e) {}
 }
 

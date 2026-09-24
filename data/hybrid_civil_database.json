@@ -382,6 +382,34 @@
       "read": false,
       "priority": "normal",
       "category": "general"
+    },
+    {
+      "id": "msg-test-admin-1790286830778",
+      "senderRole": "admin",
+      "senderId": "admin",
+      "senderName": "Administrator",
+      "receiverId": "assoc-mud4mz7mj22up8",
+      "receiverName": "xyz",
+      "associateId": "assoc-mud4mz7mj22up8",
+      "content": "Admin automated sync verification test",
+      "timestamp": "2026-09-24T21:53:50.778Z",
+      "read": true,
+      "priority": "normal",
+      "category": "general"
+    },
+    {
+      "id": "msg-test-assoc-1790286830778",
+      "senderRole": "associate",
+      "senderId": "assoc-mud4mz7mj22up8",
+      "senderName": "xyz",
+      "receiverId": "admin",
+      "receiverName": "Administrator",
+      "associateId": "assoc-mud4mz7mj22up8",
+      "content": "Associate concurrent reply verification test",
+      "timestamp": "2026-09-24T21:53:51.808Z",
+      "read": false,
+      "priority": "normal",
+      "category": "general"
     }
   ]
 }

@@ -104,6 +104,18 @@ export interface GitHubRepoFile {
   download_url?: string;
 }
 
+export interface SaveStatus {
+  success: boolean;
+  localSaved: boolean;
+  githubSaved: boolean;
+  githubCommitSha?: string | null;
+  githubCommitUrl?: string | null;
+  warning?: string;
+  error?: string;
+  message?: string;
+  authError?: boolean;
+}
+
 export type TabKey =
   | 'dashboard'
   | 'associates'

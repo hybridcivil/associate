@@ -13,6 +13,11 @@ interface NativeHeaderProps {
   onOpenGithub?: () => void;
   onOpenSyncSettings?: () => void;
   syncAction?: 'idle' | 'pulling' | 'pushing';
+  saveStatus?: {
+    githubSaved: boolean;
+    localSaved: boolean;
+    message?: string;
+  } | null;
   onSyncDatabase?: () => void;
   syncSource?: string;
   lastSyncTime?: string;
@@ -23,8 +28,20 @@ export const NativeHeader: React.FC<NativeHeaderProps> = ({
   onLogout,
   onOpenSyncSettings,
   syncAction,
+  saveStatus,
 }) => {
   const isAdmin = session.role === 'admin';
+
+  const isGitHubSynced = saveStatus ? saveStatus.githubSaved : true;
+  const statusText = syncAction === 'pushing'
+    ? 'Pushing...'
+    : syncAction === 'pulling'
+    ? 'Pulling...'
+    : saveStatus?.githubSaved
+    ? 'Synced to GitHub'
+    : saveStatus?.localSaved && !saveStatus?.githubSaved
+    ? 'Saved locally'
+    : 'Live Network';
 
   return (
     <header className="bg-[#10243a]/95 backdrop-blur-md text-white border-b border-white/10 select-none shadow-md">
@@ -57,22 +74,28 @@ export const NativeHeader: React.FC<NativeHeaderProps> = ({
             onClick={isAdmin ? onOpenSyncSettings : undefined}
             title={
               isAdmin
-                ? 'Real-Time Auto Push & Pull Active. Click to configure sync & repository token.'
-                : 'Real-Time Network Sync Active'
+                ? `Sync Status: ${statusText}. Click to configure sync & repository token.`
+                : `Sync Status: ${statusText}`
             }
-            className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg bg-emerald-500/15 border border-emerald-400/30 text-emerald-300 select-none transition-all ${
+            className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg select-none transition-all ${
+              !isGitHubSynced
+                ? 'bg-amber-500/20 border border-amber-400/40 text-amber-300'
+                : 'bg-emerald-500/15 border border-emerald-400/30 text-emerald-300'
+            } ${
               isAdmin
-                ? 'hover:bg-emerald-500/25 hover:border-emerald-400/50 cursor-pointer active:scale-95'
+                ? 'hover:brightness-110 cursor-pointer active:scale-95'
                 : 'cursor-default'
             }`}
           >
             <Radio
-              className={`w-3.5 h-3.5 text-emerald-400 ${
+              className={`w-3.5 h-3.5 ${
+                !isGitHubSynced ? 'text-amber-400' : 'text-emerald-400'
+              } ${
                 syncAction === 'pushing' || syncAction === 'pulling' ? 'animate-spin' : 'animate-pulse'
               }`}
             />
             <span className="font-semibold text-[11px] hidden sm:inline">
-              Live Network
+              {statusText}
             </span>
           </button>
 

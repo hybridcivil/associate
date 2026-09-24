@@ -39,7 +39,7 @@ import { motion, AnimatePresence } from 'motion/react';
 interface MessagesViewProps {
   db: AppDatabase;
   session: Session;
-  onUpdateDb: (updated: AppDatabase, commitMsg?: string) => void;
+  onUpdateDb: (updated: AppDatabase, commitMsg?: string) => Promise<any> | void;
   onPullLatest?: () => Promise<void> | void;
 }
 
@@ -328,19 +328,48 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
     } [${newMsg.subject || 'Thread'}]`;
 
     // Single source of truth update - auto persists to cache, server repo and GitHub
-    onUpdateDb(updatedDb, commitMsg);
+    const savePromise = onUpdateDb(updatedDb, commitMsg);
 
     setNewMessageText('');
     setNewSubject('');
     setIsUrgent(false);
     setIsSending(false);
 
-    showNotice(
-      isAdmin
-        ? `Reply dispatched to ${activeAssociate?.name || 'Associate'}.`
-        : 'Message delivered to Administrator.',
-      'success'
-    );
+    if (savePromise && typeof (savePromise as Promise<any>).then === 'function') {
+      (savePromise as Promise<any>).then((status) => {
+        if (status && status.githubSaved) {
+          showNotice(
+            isAdmin
+              ? `Reply dispatched and synced to GitHub (${status.githubCommitSha || 'latest'}).`
+              : `Message delivered and synced to GitHub (${status.githubCommitSha || 'latest'}).`,
+            'success'
+          );
+        } else if (status && status.localSaved) {
+          showNotice(
+            isAdmin
+              ? `Reply saved locally (${status.warning || 'saved to repository'}).`
+              : `Message saved locally (${status.warning || 'saved to repository'}).`,
+            'success'
+          );
+        } else {
+          showNotice(
+            isAdmin
+              ? `Reply dispatched to ${activeAssociate?.name || 'Associate'}.`
+              : 'Message delivered to Administrator.',
+            'success'
+          );
+        }
+      }).catch(() => {
+        showNotice('Message saved locally.', 'success');
+      });
+    } else {
+      showNotice(
+        isAdmin
+          ? `Reply dispatched to ${activeAssociate?.name || 'Associate'}.`
+          : 'Message delivered to Administrator.',
+        'success'
+      );
+    }
   };
 
   // Delete message (Admin or Sender Associate)
