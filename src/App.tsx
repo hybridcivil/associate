@@ -31,6 +31,7 @@ export default function App() {
   const dbRef = useRef<AppDatabase>(db);
   const sessionRef = useRef<Session | null>(session);
   const syncActionRef = useRef<'idle' | 'pulling' | 'pushing'>(syncAction);
+  const lastLocalSaveTimeRef = useRef<number>(0);
 
   useEffect(() => {
     dbRef.current = db;
@@ -50,10 +51,16 @@ export default function App() {
       // Avoid pulling if we're actively pushing out our own changes
       if (syncActionRef.current === 'pushing') return;
 
+      const requestStartTime = Date.now();
       if (isManual) setSyncAction('pulling');
       try {
-        const result = await fetchAuthoritativeDatabase();
+        const result = await fetchAuthoritativeDatabase(isManual);
         if (result.success && result.data) {
+          // If a local save happened while this request was in flight, discard the stale response!
+          if (lastLocalSaveTimeRef.current > requestStartTime) {
+            return;
+          }
+
           const currentJson = JSON.stringify(dbRef.current);
           const incomingJson = JSON.stringify(result.data);
 
@@ -123,6 +130,7 @@ export default function App() {
   // Auto-Save & Sync on any page modification (completely silent in background)
   const handleUpdateDb = async (updated: AppDatabase, commitMsg?: string) => {
     // 1. Immediately apply to local state so UI is instant and zero latency
+    lastLocalSaveTimeRef.current = Date.now();
     setDb(updated);
     dbRef.current = updated;
     setSyncAction('pushing');

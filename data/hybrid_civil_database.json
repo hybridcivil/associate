@@ -368,6 +368,20 @@
       "read": false,
       "priority": "normal",
       "category": "general"
+    },
+    {
+      "id": "msg-mufaij1o9kp44e",
+      "senderRole": "admin",
+      "senderId": "admin",
+      "senderName": "Administrator",
+      "receiverId": "assoc-muefynvqwvwlkk",
+      "receiverName": "adf",
+      "associateId": "assoc-muefynvqwvwlkk",
+      "content": "hi",
+      "timestamp": "2026-09-24T08:48:53.484Z",
+      "read": false,
+      "priority": "normal",
+      "category": "general"
     }
   ]
 }

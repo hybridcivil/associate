@@ -242,20 +242,21 @@ ${clients
         } catch (e) {}
       }
 
-      // 1. If local database doesn't exist, OR if we don't have pending unpushed local changes, check GitHub
-      if (owner && repo && (!localDb || !hasLocalUnpushedChanges)) {
-        try {
-          const ghUrl = `https://api.github.com/repos/${owner}/${repo}/contents/data/hybrid_civil_database.json?ref=${branch}`;
-          const ghRes = await fetch(ghUrl, { headers: getGitHubHeaders(token) });
-          if (ghRes.ok) {
-            const ghData = (await ghRes.json()) as any;
-            if (ghData.content && ghData.encoding === "base64") {
-              const remoteSha = ghData.sha;
-              const decoded = Buffer.from(ghData.content, "base64").toString("utf-8");
-              const remoteParsed = JSON.parse(decoded);
+      const forcePull = req.query.forcePull === "true";
 
-              // If this is initial load OR GitHub SHA has changed from outside
-              if (!localDb || (lastKnownGitHubSha && remoteSha !== lastKnownGitHubSha)) {
+      // 1. If local database doesn't exist yet, OR if user explicitly requested forcePull:
+      if (!localDb || forcePull) {
+        if (owner && repo) {
+          try {
+            const ghUrl = `https://api.github.com/repos/${owner}/${repo}/contents/data/hybrid_civil_database.json?ref=${branch}`;
+            const ghRes = await fetch(ghUrl, { headers: getGitHubHeaders(token) });
+            if (ghRes.ok) {
+              const ghData = (await ghRes.json()) as any;
+              if (ghData.content && ghData.encoding === "base64") {
+                const remoteSha = ghData.sha;
+                const decoded = Buffer.from(ghData.content, "base64").toString("utf-8");
+                const remoteParsed = JSON.parse(decoded);
+
                 lastKnownGitHubSha = remoteSha;
                 hasLocalUnpushedChanges = false;
                 await fs.promises.mkdir(path.dirname(dbFilePath), { recursive: true });
@@ -268,17 +269,15 @@ ${clients
                   data: remoteParsed,
                   updatedAt: new Date().toISOString(),
                 });
-              } else if (!lastKnownGitHubSha) {
-                lastKnownGitHubSha = remoteSha;
               }
             }
+          } catch (ghErr) {
+            console.warn("Could not fetch database directly from GitHub API, falling back to local file:", ghErr);
           }
-        } catch (ghErr) {
-          console.warn("Could not fetch database directly from GitHub API, falling back to local file:", ghErr);
         }
       }
 
-      // 2. Read from local repository file: data/hybrid_civil_database.json
+      // 2. Authoritative instantaneous read from local repository file: data/hybrid_civil_database.json
       if (localDb) {
         return res.json({
           success: true,

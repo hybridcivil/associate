@@ -421,7 +421,7 @@ export function loadDatabase(): AppDatabase {
  * Loads database authoritatively from GitHub or server repository.
  * Keeps localStorage cache up-to-date as an instant offline backup.
  */
-export async function fetchAuthoritativeDatabase(): Promise<{
+export async function fetchAuthoritativeDatabase(forcePull: boolean = false): Promise<{
   success: boolean;
   data: AppDatabase;
   source: string;
@@ -434,6 +434,7 @@ export async function fetchAuthoritativeDatabase(): Promise<{
     if (config?.repo) params.set('repo', config.repo);
     if (config?.branch) params.set('branch', config.branch);
     if (config?.token) params.set('token', config.token);
+    if (forcePull) params.set('forcePull', 'true');
 
     params.set('_t', Date.now().toString());
 
