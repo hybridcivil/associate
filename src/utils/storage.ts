@@ -15,8 +15,29 @@ export const STORAGE_KEY = 'hybridCivilAssociateNetwork_v2';
 export const SESSION_KEY = 'hybridCivilSession_auth';
 export const GITHUB_CONFIG_KEY = 'hybridCivilGitHubConfig_v1';
 export const GITHUB_LOGS_KEY = 'hybridCivilGitHubLogs_v1';
+export const DELETED_MSGS_KEY = 'hybridCivilDeletedMsgs_v1';
 
 export type { AppDatabase, SaveStatus };
+
+export function getDeletedMessageIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(DELETED_MSGS_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return new Set(arr);
+    }
+  } catch (e) {}
+  return new Set();
+}
+
+export function recordDeletedMessageId(msgId: string) {
+  try {
+    const ids = getDeletedMessageIds();
+    ids.add(msgId);
+    const arr = Array.from(ids).slice(-200);
+    localStorage.setItem(DELETED_MSGS_KEY, JSON.stringify(arr));
+  } catch (e) {}
+}
 
 export function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
@@ -320,7 +341,7 @@ const INITIAL_DATA: AppDatabase = {
 /**
  * Merge two databases non-destructively so NO messages or records are ever lost.
  */
-export function mergeDatabases(localDb: AppDatabase, remoteDb: AppDatabase): AppDatabase {
+export function mergeDatabases(localDb: AppDatabase, remoteDb: AppDatabase, deletedMsgId?: string): AppDatabase {
   if (!localDb) return remoteDb || INITIAL_DATA;
   if (!remoteDb) return localDb || INITIAL_DATA;
 
@@ -366,7 +387,7 @@ export function mergeDatabases(localDb: AppDatabase, remoteDb: AppDatabase): App
     if (p && p.id) payMap.set(p.id, p);
   }
 
-  // 5. Merge messages (union by id) - CRITICAL: NEVER DELETE ANY MESSAGE!
+  // 5. Merge messages (union by id) - CRITICAL: NEVER DELETE ANY MESSAGE UNLESS EXPLICITLY REMOVED!
   const msgMap = new Map<string, any>();
   for (const m of (localDb.messages || [])) {
     if (m && m.id) msgMap.set(m.id, m);
@@ -375,16 +396,34 @@ export function mergeDatabases(localDb: AppDatabase, remoteDb: AppDatabase): App
     if (m && m.id) {
       const existing = msgMap.get(m.id);
       if (existing) {
+        // Compare edit timestamps or preserve newer content
+        const existingEditTime = existing.editedAt ? new Date(existing.editedAt).getTime() : 0;
+        const incomingEditTime = m.editedAt ? new Date(m.editedAt).getTime() : 0;
+        const newer = incomingEditTime >= existingEditTime ? m : existing;
         msgMap.set(m.id, {
           ...existing,
           ...m,
-          read: existing.read || m.read,
+          ...newer,
+          read: Boolean(existing.read || m.read),
         });
       } else {
         msgMap.set(m.id, m);
       }
     }
   }
+
+  // Handle explicit message deletions
+  if (deletedMsgId) {
+    recordDeletedMessageId(deletedMsgId);
+    msgMap.delete(deletedMsgId);
+  }
+
+  // Filter out any known deleted message IDs so they never resurrect
+  const deletedIds = getDeletedMessageIds();
+  for (const delId of deletedIds) {
+    msgMap.delete(delId);
+  }
+
   const mergedMessages = Array.from(msgMap.values()).sort(
     (a: any, b: any) =>
       new Date(a.timestamp || 0).getTime() - new Date(b.timestamp || 0).getTime()
@@ -500,7 +539,7 @@ export async function fetchAuthoritativeDatabase(forcePull: boolean = false): Pr
  * Merges with authoritative GitHub database, handles conflict resolution,
  * and reports accurate local vs. GitHub save status.
  */
-export async function saveDatabase(data: AppDatabase, commitMessage?: string): Promise<SaveStatus> {
+export async function saveDatabase(data: AppDatabase, commitMessage?: string): Promise<SaveStatus & { data?: AppDatabase }> {
   // 1. Instant local cache update so UI is immediately responsive
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -520,6 +559,7 @@ export async function saveDatabase(data: AppDatabase, commitMessage?: string): P
         owner: config?.owner || 'hybridcivil',
         repo: config?.repo || 'associate',
         branch: config?.branch || 'main',
+        token: config?.token || '',
       }),
     });
 
@@ -545,10 +585,12 @@ export async function saveDatabase(data: AppDatabase, commitMessage?: string): P
         saveGitHubLogs([newLog, ...existing]);
       }
 
-      // If server returned merged data, update localStorage cache
+      // If server returned merged data, update localStorage cache non-destructively
+      let finalMergedData = data;
       if (json.data && Array.isArray(json.data.messages)) {
+        finalMergedData = mergeDatabases(data, json.data);
         try {
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(json.data));
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(finalMergedData));
         } catch (e) {}
       }
 
@@ -562,6 +604,7 @@ export async function saveDatabase(data: AppDatabase, commitMessage?: string): P
         error: json.error,
         authError: json.authError || json.github?.authError,
         message: isGithubSaved ? 'Synced to GitHub' : 'Saved locally',
+        data: finalMergedData,
       };
     } else {
       const errJson = await res.json().catch(() => ({}));

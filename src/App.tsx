@@ -7,6 +7,8 @@ import {
   loadSession,
   saveSession,
   calculateAssociateTotals,
+  mergeDatabases,
+  STORAGE_KEY,
 } from './utils/storage';
 import { NativeHeader } from './components/NativeHeader';
 import { NativeTabBar } from './components/NativeTabBar';
@@ -62,17 +64,24 @@ export default function App() {
             return;
           }
 
+          // Never blindly overwrite! Non-destructively merge incoming remote data with memory state
+          // This guarantees NO locally-sent messages can EVER vanish due to background polling!
+          const merged = mergeDatabases(dbRef.current, result.data);
           const currentJson = JSON.stringify(dbRef.current);
-          const incomingJson = JSON.stringify(result.data);
+          const mergedJson = JSON.stringify(merged);
 
           // If content changed remotely, update page state automatically!
-          if (currentJson !== incomingJson) {
-            setDb(result.data);
-            dbRef.current = result.data;
+          if (currentJson !== mergedJson) {
+            setDb(merged);
+            dbRef.current = merged;
+
+            try {
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+            } catch (e) {}
 
             // If session is an associate whose details were updated remotely, update session
             if (sessionRef.current && sessionRef.current.role === 'associate') {
-              const currentAssoc = result.data.associates.find(
+              const currentAssoc = merged.associates.find(
                 (a) => a.id === sessionRef.current?.id
               );
               if (
@@ -130,10 +139,15 @@ export default function App() {
 
   // Auto-Save & Sync on any page modification (completely silent in background)
   const handleUpdateDb = async (updated: AppDatabase, commitMsg?: string): Promise<SaveStatus> => {
-    // 1. Immediately apply to local state so UI is instant and zero latency
+    // 1. Immediately apply merged state to memory & UI for instant zero-latency feedback
+    const deleteMatch = typeof commitMsg === 'string' && commitMsg.match(/Delete message ([a-zA-Z0-9_-]+)/);
+    const deletedMsgId = deleteMatch ? deleteMatch[1] : undefined;
+
+    const merged = mergeDatabases(dbRef.current, updated, deletedMsgId);
+
     lastLocalSaveTimeRef.current = Date.now();
-    setDb(updated);
-    dbRef.current = updated;
+    setDb(merged);
+    dbRef.current = merged;
     setSyncAction('pushing');
 
     // 2. Automatically save and push to repository in background
@@ -143,7 +157,12 @@ export default function App() {
       githubSaved: false,
     };
     try {
-      statusResult = await saveDatabase(updated, commitMsg);
+      statusResult = await saveDatabase(merged, commitMsg);
+      if (statusResult.data) {
+        const finalMerged = mergeDatabases(dbRef.current, statusResult.data, deletedMsgId);
+        setDb(finalMerged);
+        dbRef.current = finalMerged;
+      }
       setSaveStatus(statusResult);
     } catch (err: any) {
       console.warn('Background save note:', err);

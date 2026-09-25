@@ -114,6 +114,7 @@ export interface SaveStatus {
   error?: string;
   message?: string;
   authError?: boolean;
+  data?: AppDatabase;
 }
 
 export type TabKey =

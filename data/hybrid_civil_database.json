@@ -199,6 +199,11 @@
   ],
   "messages": [
     {
+      "id": "msg-curl-test",
+      "content": "testing",
+      "read": false
+    },
+    {
       "id": "msg-1",
       "senderRole": "associate",
       "senderId": "assoc-1",
@@ -407,6 +412,20 @@
       "associateId": "assoc-mud4mz7mj22up8",
       "content": "Associate concurrent reply verification test",
       "timestamp": "2026-09-24T21:53:51.808Z",
+      "read": false,
+      "priority": "normal",
+      "category": "general"
+    },
+    {
+      "id": "msg-verify-1790329407383",
+      "senderRole": "associate",
+      "senderId": "assoc-1",
+      "senderName": "Engr. Tanvir Ahmed",
+      "receiverId": "admin",
+      "receiverName": "Administrator",
+      "associateId": "assoc-1",
+      "content": "Persistent live test message",
+      "timestamp": "2026-09-25T09:43:27.383Z",
       "read": false,
       "priority": "normal",
       "category": "general"

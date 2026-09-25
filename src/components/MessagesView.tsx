@@ -4,6 +4,7 @@ import {
   generateId,
   calculateAssociateTotals,
   formatMoney,
+  recordDeletedMessageId,
 } from '../utils/storage';
 import {
   MessageSquare,
@@ -75,6 +76,13 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
     }
     return session.id || '';
   });
+
+  // Ensure an associate thread is always selected for Admin if associates exist
+  useEffect(() => {
+    if (isAdmin && !selectedAssociateId && db.associates && db.associates.length > 0) {
+      setSelectedAssociateId(db.associates[0].id);
+    }
+  }, [isAdmin, selectedAssociateId, db.associates]);
 
   // Admin filter states
   const [searchTerm, setSearchTerm] = useState('');
@@ -385,6 +393,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
 
     if (!confirm('Are you sure you want to delete this message?')) return;
 
+    recordDeletedMessageId(msgId);
     const updatedMessages = (db.messages || []).filter((m) => m.id !== msgId);
     const updatedDb = { ...db, messages: updatedMessages };
     onUpdateDb(

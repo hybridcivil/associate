@@ -103,8 +103,30 @@ ${clients
 `;
   };
 
+  // Helper for server-side deleted message tracking
+  const DELETED_MESSAGES_FILE = path.join(process.cwd(), "data", "deleted_messages.json");
+  const getServerDeletedMsgIds = (): Set<string> => {
+    try {
+      if (fs.existsSync(DELETED_MESSAGES_FILE)) {
+        const raw = fs.readFileSync(DELETED_MESSAGES_FILE, "utf-8");
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return new Set(parsed);
+      }
+    } catch {}
+    return new Set();
+  };
+
+  const recordServerDeletedMsgId = (id: string) => {
+    try {
+      const set = getServerDeletedMsgIds();
+      set.add(id);
+      fs.mkdirSync(path.dirname(DELETED_MESSAGES_FILE), { recursive: true });
+      fs.writeFileSync(DELETED_MESSAGES_FILE, JSON.stringify(Array.from(set).slice(-300)), "utf-8");
+    } catch {}
+  };
+
   // Helper to merge databases non-destructively so NO messages or records are ever lost
-  const mergeDatabases = (localDb: any, incomingDb: any): any => {
+  const mergeDatabases = (localDb: any, incomingDb: any, deletedMsgId?: string): any => {
     if (!localDb) return incomingDb || {};
     if (!incomingDb) return localDb || {};
 
@@ -150,7 +172,7 @@ ${clients
       if (p && p.id) payMap.set(p.id, p);
     }
 
-    // 5. Merge messages (union by id) - CRITICAL: NEVER DELETE ANY MESSAGE!
+    // 5. Merge messages (union by id) - CRITICAL: NEVER DELETE ANY MESSAGE UNLESS EXPLICITLY REMOVED!
     const msgMap = new Map<string, any>();
     for (const m of (localDb.messages || [])) {
       if (m && m.id) msgMap.set(m.id, m);
@@ -159,16 +181,32 @@ ${clients
       if (m && m.id) {
         const existing = msgMap.get(m.id);
         if (existing) {
+          const existingEditTime = existing.editedAt ? new Date(existing.editedAt).getTime() : 0;
+          const incomingEditTime = m.editedAt ? new Date(m.editedAt).getTime() : 0;
+          const newer = incomingEditTime >= existingEditTime ? m : existing;
           msgMap.set(m.id, {
             ...existing,
             ...m,
-            read: existing.read || m.read,
+            ...newer,
+            read: Boolean(existing.read || m.read),
           });
         } else {
           msgMap.set(m.id, m);
         }
       }
     }
+
+    if (deletedMsgId) {
+      recordServerDeletedMsgId(deletedMsgId);
+      msgMap.delete(deletedMsgId);
+    }
+
+    // Filter out all known deleted message IDs
+    const serverDeletedIds = getServerDeletedMsgIds();
+    for (const delId of serverDeletedIds) {
+      msgMap.delete(delId);
+    }
+
     const mergedMessages = Array.from(msgMap.values()).sort(
       (a: any, b: any) =>
         new Date(a.timestamp || 0).getTime() - new Date(b.timestamp || 0).getTime()
@@ -229,10 +267,10 @@ ${clients
   ): Promise<{ sha: string; data: any } | null> => {
     if (!owner || !repo) return null;
     const cleanPath = "data/hybrid_civil_database.json";
-    const ghUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${cleanPath}?ref=${branch}`;
+    const ghUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${cleanPath}?ref=${branch}&_cb=${Date.now()}`;
     const headers = {
       ...getGitHubHeaders(token),
-      "Cache-Control": "no-cache",
+      "Cache-Control": "no-cache, no-store, must-revalidate",
       Pragma: "no-cache",
     };
     const ghRes = await fetch(ghUrl, { headers, signal: AbortSignal.timeout(8000) });
@@ -344,6 +382,10 @@ ${clients
       }
 
       const effectiveToken = serverConfig.token || (token && token.trim()) || "";
+      if (token && token.trim() && !serverConfig.token) {
+        saveServerGitHubConfig({ token: token.trim(), owner, repo, branch }).catch(() => {});
+      }
+
       const dbFilePath = path.join(process.cwd(), "data", "hybrid_civil_database.json");
       let currentLocalDb: any = null;
       if (fs.existsSync(dbFilePath)) {
@@ -352,6 +394,10 @@ ${clients
           currentLocalDb = JSON.parse(fileContent);
         } catch (e) {}
       }
+
+      // Check if this save is an explicit message deletion
+      const deleteMatch = typeof message === "string" && message.match(/Delete message ([a-zA-Z0-9_-]+)/);
+      const deletedMsgId = deleteMatch ? deleteMatch[1] : undefined;
 
       // Step 1: Read latest from GitHub if configured
       let remoteDb: any = null;
@@ -373,10 +419,10 @@ ${clients
       // Step 2: Merge the incoming database with the latest GitHub database (and current local db)
       // Base is remote if available, else local
       const baseDb = remoteDb || currentLocalDb;
-      let mergedDb = mergeDatabases(baseDb, data);
+      let mergedDb = mergeDatabases(baseDb, data, deletedMsgId);
       if (currentLocalDb && baseDb !== currentLocalDb) {
         // Also ensure any local-only messages aren't lost
-        mergedDb = mergeDatabases(mergedDb, currentLocalDb);
+        mergedDb = mergeDatabases(mergedDb, currentLocalDb, deletedMsgId);
       }
 
       // Sanitize and validate merged database structure
@@ -468,7 +514,7 @@ ${clients
               const freshRemote = await fetchGitHubDatabase(owner, repo, branch, effectiveToken);
               if (freshRemote) {
                 // Re-merge with the freshly updated remote database
-                const remerged = mergeDatabases(freshRemote.data, validatedDb);
+                const remerged = mergeDatabases(freshRemote.data, validatedDb, deletedMsgId);
                 const revalidated = {
                   admin: remerged.admin || { username: "admin", password: "admin123" },
                   associates: Array.isArray(remerged.associates) ? remerged.associates : [],
