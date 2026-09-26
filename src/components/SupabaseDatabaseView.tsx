@@ -20,8 +20,10 @@ import {
   Lock,
   ArrowDownToLine,
   Sliders,
+  Activity,
+  UserCheck,
 } from 'lucide-react';
-import { AppDatabase, SupabaseConfig } from '../types';
+import { AppDatabase, SupabaseConfig, Session } from '../types';
 import {
   loadSupabaseConfig,
   saveSupabaseConfig,
@@ -30,15 +32,18 @@ import {
   fetchFromSupabase,
   saveServerSupabaseConfig,
 } from '../utils/supabase';
+import { fetchOnlineUsers, PresenceUser } from '../utils/presence';
 
 interface SupabaseDatabaseViewProps {
   db: AppDatabase;
+  session?: Session;
   onUpdateDb?: (updated: AppDatabase, commitMsg?: string) => Promise<any>;
   onOpenSettings?: () => void;
 }
 
 export const SupabaseDatabaseView: React.FC<SupabaseDatabaseViewProps> = ({
   db,
+  session,
   onUpdateDb,
   onOpenSettings,
 }) => {
@@ -50,6 +55,9 @@ export const SupabaseDatabaseView: React.FC<SupabaseDatabaseViewProps> = ({
     details?: string;
     tablesFound?: string[];
   } | null>(null);
+
+  const [onlineUsers, setOnlineUsers] = useState<PresenceUser[]>([]);
+  const [isRefreshingPresence, setIsRefreshingPresence] = useState<boolean>(false);
 
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [syncStatus, setSyncStatus] = useState<{
@@ -63,6 +71,43 @@ export const SupabaseDatabaseView: React.FC<SupabaseDatabaseViewProps> = ({
   useEffect(() => {
     handleRunTest();
   }, []);
+
+  // Poll live user presence every 3.5 seconds
+  const refreshPresence = async () => {
+    setIsRefreshingPresence(true);
+    try {
+      const users = await fetchOnlineUsers();
+      setOnlineUsers(users);
+    } finally {
+      setIsRefreshingPresence(false);
+    }
+  };
+
+  useEffect(() => {
+    let mounted = true;
+    const poll = async () => {
+      const users = await fetchOnlineUsers();
+      if (mounted) setOnlineUsers(users);
+    };
+    poll();
+    const timer = setInterval(poll, 3500);
+    return () => {
+      mounted = false;
+      clearInterval(timer);
+    };
+  }, []);
+
+  const isAssociateOnline = (assocId: string, phone?: string): boolean => {
+    if (session && session.role === 'associate' && session.id === assocId) return true;
+    return onlineUsers.some(
+      (u) => u.id === assocId || (phone && u.phone && u.phone === phone)
+    );
+  };
+
+  const isAdminOnline = (): boolean => {
+    if (session && session.role === 'admin') return true;
+    return onlineUsers.some((u) => u.role === 'admin');
+  };
 
   const handleRunTest = async () => {
     setIsTesting(true);
@@ -433,20 +478,144 @@ CREATE POLICY "Public access for app_database" ON public.app_database FOR ALL US
 
         {/* Selected Table Data Preview */}
         <div className="mt-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200 overflow-x-auto">
-          <div className="font-bold text-xs text-slate-700 mb-2 flex items-center justify-between">
-            <span>Preview records in <code className="text-emerald-700 font-mono">public.{selectedTable}</code>:</span>
-            <span className="text-[11px] text-slate-500 font-normal">Auto-synchronized with Supabase</span>
+          <div className="font-bold text-xs text-slate-700 mb-2 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span>Preview records in <code className="text-emerald-700 font-mono">public.{selectedTable}</code>:</span>
+              {selectedTable === 'associates' && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-xs">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <span>{onlineUsers.length > 0 ? onlineUsers.length : (session ? 1 : 0)} Logged In Now</span>
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-slate-500 font-normal">Auto-synchronized with Supabase</span>
+              {selectedTable === 'associates' && (
+                <button
+                  type="button"
+                  onClick={refreshPresence}
+                  title="Check live active logins"
+                  className="p-1 text-slate-400 hover:text-emerald-600 transition-colors rounded hover:bg-slate-200/50 cursor-pointer"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingPresence ? 'animate-spin text-emerald-600' : ''}`} />
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="max-h-[160px] overflow-y-auto font-mono text-[11px] text-slate-700 bg-white p-2.5 rounded-lg border border-slate-200">
+          {selectedTable === 'associates' && (
+            <div className="mb-2.5 p-2.5 bg-gradient-to-r from-emerald-50 via-teal-50/60 to-emerald-50 border border-emerald-200/90 rounded-lg flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
+                </span>
+                <span className="font-bold text-emerald-950 text-[11px]">
+                  Currently Logged In:
+                </span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {onlineUsers.length > 0 ? (
+                    onlineUsers.map((u) => (
+                      <span
+                        key={u.id}
+                        className="px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-white text-emerald-800 border border-emerald-300 shadow-xs flex items-center gap-1"
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                        {u.name} {u.role === 'admin' ? '(Admin)' : `(${u.phone || 'Associate'})`}
+                      </span>
+                    ))
+                  ) : session ? (
+                    <span className="px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-white text-emerald-800 border border-emerald-300 shadow-xs flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                      {session.name} {session.role === 'admin' ? '(Admin - Current)' : `(${session.phone || 'Associate'})`}
+                    </span>
+                  ) : (
+                    <span className="text-slate-500 italic text-[11px]">No active sessions</span>
+                  )}
+                </div>
+              </div>
+              <span className="text-[10px] font-semibold text-emerald-700 bg-white/90 px-2 py-0.5 rounded border border-emerald-200">
+                Live Heartbeat Active
+              </span>
+            </div>
+          )}
+
+          <div className="max-h-[220px] overflow-y-auto font-mono text-[11px] text-slate-700 bg-white p-2.5 rounded-lg border border-slate-200">
             {selectedTable === 'associates' && (
               <div className="space-y-1">
-                {db.associates.slice(0, 5).map((a) => (
-                  <div key={a.id} className="flex justify-between border-b border-slate-100 py-0.5">
-                    <span>{a.name} ({a.phone})</span>
-                    <span className="text-emerald-600 font-semibold">{a.status}</span>
+                {/* Show Admin if currently logged in */}
+                {isAdminOnline() && (
+                  <div className="flex items-center justify-between border-b border-emerald-100 py-1.5 px-2 rounded-md bg-emerald-50/60 transition-colors">
+                    <div className="flex items-center gap-2 truncate pr-2">
+                      <span className="relative flex h-2 w-2 flex-shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
+                      </span>
+                      <span className="font-bold text-slate-800 truncate">
+                        {session?.role === 'admin' ? session.name : 'Administrator'} (admin)
+                      </span>
+                      <span className="text-[9.5px] font-sans font-medium text-slate-400">[Admin Account]</span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0 font-sans">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-xs">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                        Logged In Now {session?.role === 'admin' ? '(You)' : ''}
+                      </span>
+                      <span className="text-emerald-600 font-semibold font-mono text-[10.5px]">active</span>
+                    </div>
                   </div>
-                ))}
+                )}
+
+                {/* Show All Associates with live login presence status */}
+                {db.associates.map((a) => {
+                  const online = isAssociateOnline(a.id, a.phone);
+                  const isCurrent = session?.id === a.id;
+                  return (
+                    <div
+                      key={a.id}
+                      className={`flex items-center justify-between border-b border-slate-100 py-1.5 px-2 rounded-md transition-colors ${
+                        online
+                          ? 'bg-emerald-50/80 border-emerald-200 ring-1 ring-emerald-300/60 shadow-xs'
+                          : 'hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 truncate pr-2">
+                        <span
+                          className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                            online
+                              ? 'bg-emerald-500 shadow-xs ring-2 ring-emerald-200'
+                              : 'bg-slate-300'
+                          }`}
+                        />
+                        <span className={`truncate ${online ? 'font-bold text-emerald-950' : 'text-slate-800'}`}>
+                          {a.name} ({a.phone})
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0 font-sans">
+                        {online ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-xs">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
+                            Logged In Now {isCurrent ? '(You)' : ''}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-500">
+                            Offline
+                          </span>
+                        )}
+                        <span
+                          className={`font-semibold font-mono text-[10.5px] ${
+                            a.status === 'active' ? 'text-emerald-600' : 'text-rose-500'
+                          }`}
+                        >
+                          {a.status}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
 

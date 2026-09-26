@@ -11,6 +11,7 @@ import {
   STORAGE_KEY,
 } from './utils/storage';
 import { fetchServerSupabaseConfig } from './utils/supabase';
+import { sendPresenceHeartbeat, sendPresenceLogout } from './utils/presence';
 import { NativeHeader } from './components/NativeHeader';
 import { NativeTabBar } from './components/NativeTabBar';
 import { DashboardView } from './components/DashboardView';
@@ -54,6 +55,29 @@ export default function App() {
   useEffect(() => {
     fetchServerSupabaseConfig().catch(() => {});
   }, []);
+
+  // Real-time active login presence heartbeat loop
+  useEffect(() => {
+    if (!session) return;
+    sendPresenceHeartbeat(session);
+    const interval = setInterval(() => {
+      sendPresenceHeartbeat(session);
+    }, 10000);
+
+    const handleActive = () => {
+      if (document.visibilityState === 'visible') {
+        sendPresenceHeartbeat(session);
+      }
+    };
+    window.addEventListener('focus', handleActive);
+    document.addEventListener('visibilitychange', handleActive);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleActive);
+      document.removeEventListener('visibilitychange', handleActive);
+    };
+  }, [session]);
 
   // Core pull function: pulls latest database in the background without UI interruption
   const pullLatestData = useCallback(
@@ -196,6 +220,9 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    if (session) {
+      sendPresenceLogout(session);
+    }
     setSession(null);
     saveSession(null);
   };
@@ -306,6 +333,7 @@ export default function App() {
             {currentTab === 'supabase' && session.role === 'admin' && (
               <SupabaseDatabaseView
                 db={db}
+                session={session}
                 onUpdateDb={handleUpdateDb}
                 onOpenSettings={() => setIsSyncModalOpen(true)}
               />

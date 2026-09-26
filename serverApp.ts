@@ -999,6 +999,81 @@ ${clients
     }
   });
 
+  // ==========================================
+  // REAL-TIME USER PRESENCE & LOGIN TRACKING
+  // ==========================================
+  interface PresenceUserRecord {
+    id: string;
+    role: "admin" | "associate";
+    name: string;
+    phone?: string;
+    lastSeen: number;
+    loginTime: number;
+  }
+  const activeSessions = new Map<string, PresenceUserRecord>();
+
+  // POST /presence/heartbeat
+  router.post("/presence/heartbeat", (req, res) => {
+    try {
+      const { id, role, name, phone } = req.body;
+      if (!id || !role || !name) {
+        return res.status(400).json({ error: "Missing required session parameters." });
+      }
+      const now = Date.now();
+      const existing = activeSessions.get(id);
+      activeSessions.set(id, {
+        id,
+        role,
+        name,
+        phone: phone || "",
+        lastSeen: now,
+        loginTime: existing ? existing.loginTime : now,
+      });
+
+      // Cleanup stale sessions older than 35s
+      for (const [key, user] of activeSessions.entries()) {
+        if (now - user.lastSeen > 35000) {
+          activeSessions.delete(key);
+        }
+      }
+
+      res.json({ success: true, count: activeSessions.size });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Heartbeat error" });
+    }
+  });
+
+  // POST /presence/logout
+  router.post("/presence/logout", (req, res) => {
+    try {
+      const { id } = req.body;
+      if (id) {
+        activeSessions.delete(id);
+      }
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Logout error" });
+    }
+  });
+
+  // GET /presence
+  router.get("/presence", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    const now = Date.now();
+    for (const [key, user] of activeSessions.entries()) {
+      if (now - user.lastSeen > 35000) {
+        activeSessions.delete(key);
+      }
+    }
+    const onlineList = Array.from(activeSessions.values());
+    res.json({
+      success: true,
+      onlineUsers: onlineList,
+      activeCount: onlineList.length,
+      timestamp: now,
+    });
+  });
+
   // Mount router at both '/api' and '/'
   app.use("/api", router);
   app.use("/", router);
