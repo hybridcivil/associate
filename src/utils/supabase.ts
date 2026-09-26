@@ -22,6 +22,8 @@ let cachedClient: SupabaseClient | null = null;
 let lastUsedUrl = '';
 let lastUsedKey = '';
 
+export const DEFAULT_SUPABASE_URL = 'https://fyfpkmqdhgnvyrrinuao.supabase.co';
+
 /**
  * Loads Supabase configuration from localStorage or Vite environment variables
  */
@@ -40,8 +42,8 @@ export function loadSupabaseConfig(): SupabaseConfig {
   }
 
   return {
-    url: stored.url || envUrl,
-    anonKey: stored.anonKey || envKey,
+    url: stored.url || envUrl || DEFAULT_SUPABASE_URL,
+    anonKey: stored.anonKey || envKey || '',
     autoSync: stored.autoSync !== undefined ? stored.autoSync : true,
   };
 }
@@ -97,6 +99,7 @@ export async function fetchServerSupabaseConfig(): Promise<{
   success: boolean;
   url: string;
   hasKey: boolean;
+  publishableKey?: string;
   keyMasked: string | null;
   autoSync: boolean;
 }> {
@@ -105,7 +108,18 @@ export async function fetchServerSupabaseConfig(): Promise<{
       headers: { 'Cache-Control': 'no-cache' },
     });
     if (res.ok) {
-      return await res.json();
+      const data = await res.json();
+      if (data.success && data.publishableKey) {
+        const cur = loadSupabaseConfig();
+        if (!cur.anonKey) {
+          saveSupabaseConfig({
+            url: data.url || cur.url || DEFAULT_SUPABASE_URL,
+            anonKey: data.publishableKey,
+            autoSync: data.autoSync ?? true,
+          });
+        }
+      }
+      return data;
     }
   } catch (e) {
     console.warn('Could not fetch server Supabase config:', e);
@@ -114,6 +128,7 @@ export async function fetchServerSupabaseConfig(): Promise<{
     success: false,
     url: '',
     hasKey: false,
+    publishableKey: '',
     keyMasked: null,
     autoSync: true,
   };
@@ -467,15 +482,15 @@ export async function saveToSupabase(db: AppDatabase): Promise<{
 
     const messagesRows = (db.messages || []).map((m) => ({
       id: m.id,
-      sender_role: m.senderRole,
-      sender_id: m.senderId,
-      sender_name: m.senderName,
-      receiver_id: m.receiverId,
+      sender_role: m.senderRole || 'admin',
+      sender_id: m.senderId || 'admin',
+      sender_name: m.senderName || 'Admin',
+      receiver_id: m.receiverId || 'all',
       receiver_name: m.receiverName || null,
-      associate_id: m.associateId,
+      associate_id: m.associateId || 'assoc-1',
       subject: m.subject || null,
-      content: m.content,
-      timestamp: m.timestamp,
+      content: m.content || '',
+      timestamp: m.timestamp || new Date().toISOString(),
       read: Boolean(m.read),
       priority: m.priority || 'normal',
       category: m.category || 'general',

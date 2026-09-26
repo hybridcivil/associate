@@ -231,14 +231,33 @@ ${clients
   let serverSupabaseUrl = "";
   let serverSupabaseKey = "";
 
-  const getServerSupabaseConfig = (): { url: string; anonKey: string; autoSync: boolean } => {
+  const getServerSupabaseConfig = (): {
+    url: string;
+    anonKey: string;
+    publishableKey?: string;
+    serviceRoleKey?: string;
+    autoSync: boolean;
+  } => {
     let config = {
-      url: process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "",
+      url:
+        process.env.SUPABASE_URL ||
+        process.env.VITE_SUPABASE_URL ||
+        "https://fyfpkmqdhgnvyrrinuao.supabase.co",
       anonKey:
+        process.env.SUPABASE_SECRET_KEY ||
         process.env.SUPABASE_SERVICE_ROLE_KEY ||
         process.env.SUPABASE_KEY ||
+        process.env.SUPABASE_PUBLISHABLE_KEY ||
         process.env.SUPABASE_ANON_KEY ||
         process.env.VITE_SUPABASE_ANON_KEY ||
+        "",
+      publishableKey:
+        process.env.SUPABASE_PUBLISHABLE_KEY ||
+        process.env.VITE_SUPABASE_ANON_KEY ||
+        "",
+      serviceRoleKey:
+        process.env.SUPABASE_SECRET_KEY ||
+        process.env.SUPABASE_SERVICE_ROLE_KEY ||
         "",
       autoSync: true,
     };
@@ -459,15 +478,15 @@ ${clients
 
       const messagesRows = (validatedDb.messages || []).map((m: any) => ({
         id: m.id,
-        sender_role: m.senderRole,
-        sender_id: m.senderId,
-        sender_name: m.senderName,
-        receiver_id: m.receiverId,
+        sender_role: m.senderRole || "admin",
+        sender_id: m.senderId || "admin",
+        sender_name: m.senderName || "Admin",
+        receiver_id: m.receiverId || "all",
         receiver_name: m.receiverName || null,
-        associate_id: m.associateId,
+        associate_id: m.associateId || "assoc-1",
         subject: m.subject || null,
-        content: m.content,
-        timestamp: m.timestamp,
+        content: m.content || "",
+        timestamp: m.timestamp || new Date().toISOString(),
         read: Boolean(m.read),
         priority: m.priority || "normal",
         category: m.category || "general",
@@ -834,6 +853,7 @@ ${clients
       success: true,
       url: config.url,
       hasKey: !!config.anonKey,
+      publishableKey: config.publishableKey || config.anonKey,
       keyMasked: config.anonKey
         ? `${config.anonKey.substring(0, 5)}...${config.anonKey.substring(config.anonKey.length - 4)}`
         : null,

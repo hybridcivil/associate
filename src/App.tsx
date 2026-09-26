@@ -10,6 +10,7 @@ import {
   mergeDatabases,
   STORAGE_KEY,
 } from './utils/storage';
+import { fetchServerSupabaseConfig } from './utils/supabase';
 import { NativeHeader } from './components/NativeHeader';
 import { NativeTabBar } from './components/NativeTabBar';
 import { DashboardView } from './components/DashboardView';
@@ -48,6 +49,11 @@ export default function App() {
   useEffect(() => {
     syncActionRef.current = syncAction;
   }, [syncAction]);
+
+  // On mount, load backend Supabase config into client if not already present
+  useEffect(() => {
+    fetchServerSupabaseConfig().catch(() => {});
+  }, []);
 
   // Core pull function: pulls latest database in the background without UI interruption
   const pullLatestData = useCallback(

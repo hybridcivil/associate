@@ -199,11 +199,6 @@
   ],
   "messages": [
     {
-      "id": "msg-curl-test",
-      "content": "testing",
-      "read": false
-    },
-    {
       "id": "msg-1",
       "senderRole": "associate",
       "senderId": "assoc-1",
@@ -216,7 +211,8 @@
       "timestamp": "2026-03-16T10:30:00Z",
       "read": true,
       "priority": "normal",
-      "category": "payment"
+      "category": "payment",
+      "isEdited": false
     },
     {
       "id": "msg-2",
@@ -231,7 +227,8 @@
       "timestamp": "2026-03-16T11:45:00Z",
       "read": true,
       "priority": "normal",
-      "category": "payment"
+      "category": "payment",
+      "isEdited": false
     },
     {
       "id": "msg-3",
@@ -246,7 +243,8 @@
       "timestamp": "2026-03-18T09:15:00Z",
       "read": true,
       "priority": "urgent",
-      "category": "technical"
+      "category": "technical",
+      "isEdited": false
     },
     {
       "id": "msg-mud501rbotcxke",
@@ -260,7 +258,8 @@
       "timestamp": "2026-09-22T20:39:00.839Z",
       "read": true,
       "priority": "normal",
-      "category": "general"
+      "category": "general",
+      "isEdited": false
     },
     {
       "id": "msg-mud5qe5tdh59ar",
@@ -274,7 +273,8 @@
       "timestamp": "2026-09-22T20:59:29.969Z",
       "read": true,
       "priority": "normal",
-      "category": "payment"
+      "category": "payment",
+      "isEdited": false
     },
     {
       "id": "msg-mudwgze49bchr4",
@@ -288,7 +288,8 @@
       "timestamp": "2026-09-23T09:28:00.556Z",
       "read": true,
       "priority": "normal",
-      "category": "general"
+      "category": "general",
+      "isEdited": false
     },
     {
       "id": "msg-mudwv7yexuh9vz",
@@ -302,7 +303,8 @@
       "timestamp": "2026-09-23T09:39:04.838Z",
       "read": false,
       "priority": "normal",
-      "category": "general"
+      "category": "general",
+      "isEdited": false
     },
     {
       "id": "msg-mudx0cv90kvy67",
@@ -316,7 +318,8 @@
       "timestamp": "2026-09-23T09:43:04.485Z",
       "read": false,
       "priority": "normal",
-      "category": "general"
+      "category": "general",
+      "isEdited": false
     },
     {
       "id": "msg-mudx2yc7w5aek8",
@@ -330,7 +333,8 @@
       "timestamp": "2026-09-23T09:45:05.623Z",
       "read": false,
       "priority": "normal",
-      "category": "general"
+      "category": "general",
+      "isEdited": false
     },
     {
       "id": "msg-mudxks2he7aauc",
@@ -344,7 +348,8 @@
       "timestamp": "2026-09-23T09:58:57.305Z",
       "read": false,
       "priority": "normal",
-      "category": "general"
+      "category": "general",
+      "isEdited": false
     },
     {
       "id": "msg-mudy2c9p1u02r8",
@@ -358,7 +363,8 @@
       "timestamp": "2026-09-23T10:12:36.637Z",
       "read": false,
       "priority": "normal",
-      "category": "general"
+      "category": "general",
+      "isEdited": false
     },
     {
       "id": "msg-muf9xg4a03g8ln",
@@ -372,7 +378,8 @@
       "timestamp": "2026-09-24T08:32:29.914Z",
       "read": false,
       "priority": "normal",
-      "category": "general"
+      "category": "general",
+      "isEdited": false
     },
     {
       "id": "msg-mufaij1o9kp44e",
@@ -386,7 +393,8 @@
       "timestamp": "2026-09-24T08:48:53.484Z",
       "read": false,
       "priority": "normal",
-      "category": "general"
+      "category": "general",
+      "isEdited": false
     },
     {
       "id": "msg-test-admin-1790286830778",
@@ -400,7 +408,8 @@
       "timestamp": "2026-09-24T21:53:50.778Z",
       "read": true,
       "priority": "normal",
-      "category": "general"
+      "category": "general",
+      "isEdited": false
     },
     {
       "id": "msg-test-assoc-1790286830778",
@@ -414,7 +423,8 @@
       "timestamp": "2026-09-24T21:53:51.808Z",
       "read": false,
       "priority": "normal",
-      "category": "general"
+      "category": "general",
+      "isEdited": false
     },
     {
       "id": "msg-verify-1790329407383",
@@ -428,7 +438,22 @@
       "timestamp": "2026-09-25T09:43:27.383Z",
       "read": false,
       "priority": "normal",
-      "category": "general"
+      "category": "general",
+      "isEdited": false
+    },
+    {
+      "id": "msg-curl-test",
+      "senderRole": "admin",
+      "senderId": "admin",
+      "senderName": "Admin",
+      "receiverId": "all",
+      "associateId": "assoc-1",
+      "content": "testing",
+      "timestamp": "2026-09-26T21:26:26.963Z",
+      "read": false,
+      "priority": "normal",
+      "category": "general",
+      "isEdited": false
     }
   ]
 }

@@ -4,8 +4,6 @@ import {
   saveDatabase,
   calculateAssociateTotals,
   formatMoney,
-  syncDatabaseToGitHub,
-  loadGitHubConfig,
 } from '../utils/storage';
 import {
   UserCircle,
@@ -19,8 +17,6 @@ import {
   TrendingUp,
   CreditCard,
   AlertTriangle,
-  Github,
-  CloudCheck,
   RefreshCw,
 } from 'lucide-react';
 
@@ -41,7 +37,6 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [githubSyncMsg, setGithubSyncMsg] = useState<string | null>(null);
 
   const [notification, setNotification] = useState<{
     text: string;
@@ -63,7 +58,6 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
   }
 
   const totals = calculateAssociateTotals(db, associate.id);
-  const ghConfig = loadGitHubConfig();
 
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,7 +78,6 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
     }
 
     setIsSubmitting(true);
-    setGithubSyncMsg(null);
 
     const updatedAssociates = db.associates.map((a) =>
       a.id === associate.id ? { ...a, password: newPassword } : a
@@ -95,35 +88,17 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
       associates: updatedAssociates,
     };
 
-    saveDatabase(updatedDb);
-    onUpdateDb(updatedDb);
-
-    setOldPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
-
-    // Trigger auto-sync to GitHub
     try {
-      const ghResult = await syncDatabaseToGitHub(
-        updatedDb,
-        `Security: Password updated for associate ${associate.name} (${associate.phone})`
-      );
+      await saveDatabase(updatedDb);
+      onUpdateDb(updatedDb);
 
-      if (ghResult.success) {
-        setGithubSyncMsg(`Auto-synced to GitHub repository (${ghResult.commitSha})`);
-        showNotice(
-          `Password updated and auto-synced to GitHub (${ghResult.commitSha})!`,
-          'success'
-        );
-      } else {
-        setGithubSyncMsg(ghResult.message || 'Saved locally');
-        showNotice(
-          'Your login password was updated successfully in the network.',
-          'success'
-        );
-      }
-    } catch {
+      setOldPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+
       showNotice('Your login password was updated successfully.', 'success');
+    } catch {
+      showNotice('Failed to update password. Please try again.', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -323,7 +298,7 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
               {isSubmitting ? (
                 <>
                   <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                  <span>Updating & Syncing...</span>
+                  <span>Updating...</span>
                 </>
               ) : (
                 <>
@@ -332,21 +307,7 @@ export const MyProfileView: React.FC<MyProfileViewProps> = ({
                 </>
               )}
             </button>
-
-            {ghConfig.owner && ghConfig.repo && (
-              <span className="text-[11px] text-slate-500 flex items-center gap-1">
-                <Github className="w-3.5 h-3.5 text-slate-400" />
-                <span>Auto-syncs to {ghConfig.owner}/{ghConfig.repo}</span>
-              </span>
-            )}
           </div>
-
-          {githubSyncMsg && (
-            <div className="text-[11.5px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 mt-2">
-              <CheckCircle className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-              <span>{githubSyncMsg}</span>
-            </div>
-          )}
         </form>
       </div>
     </div>
