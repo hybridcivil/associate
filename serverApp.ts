@@ -2,6 +2,7 @@ import express, { Express, Router } from "express";
 import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 dotenv.config();
 
@@ -222,10 +223,292 @@ ${clients
     };
   };
 
+  // ==========================================
+  // SUPABASE CONFIGURATION & DATA ENGINE
+  // ==========================================
+  const SUPABASE_CONFIG_FILE = path.join(process.cwd(), "data", "supabase_config.json");
+  let serverSupabaseClient: SupabaseClient | null = null;
+  let serverSupabaseUrl = "";
+  let serverSupabaseKey = "";
+
+  const getServerSupabaseConfig = (): { url: string; anonKey: string; autoSync: boolean } => {
+    let config = {
+      url: process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || "",
+      anonKey:
+        process.env.SUPABASE_SERVICE_ROLE_KEY ||
+        process.env.SUPABASE_KEY ||
+        process.env.SUPABASE_ANON_KEY ||
+        process.env.VITE_SUPABASE_ANON_KEY ||
+        "",
+      autoSync: true,
+    };
+    if (fs.existsSync(SUPABASE_CONFIG_FILE)) {
+      try {
+        const raw = fs.readFileSync(SUPABASE_CONFIG_FILE, "utf-8");
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+          config = { ...config, ...parsed };
+        }
+      } catch {}
+    }
+    return config;
+  };
+
+  const saveServerSupabaseConfig = async (
+    newConfig: Partial<{ url: string; anonKey: string; autoSync: boolean }>
+  ) => {
+    const current = getServerSupabaseConfig();
+    const merged = { ...current, ...newConfig };
+    await fs.promises.mkdir(path.dirname(SUPABASE_CONFIG_FILE), { recursive: true });
+    await fs.promises.writeFile(SUPABASE_CONFIG_FILE, JSON.stringify(merged, null, 2), "utf-8");
+    serverSupabaseClient = null;
+    return merged;
+  };
+
+  const getServerSupabaseClient = (): SupabaseClient | null => {
+    const cfg = getServerSupabaseConfig();
+    const url = (cfg.url || "").trim();
+    const key = (cfg.anonKey || "").trim();
+    if (!url || !key) return null;
+    if (serverSupabaseClient && url === serverSupabaseUrl && key === serverSupabaseKey) {
+      return serverSupabaseClient;
+    }
+    try {
+      serverSupabaseClient = createClient(url, key, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      serverSupabaseUrl = url;
+      serverSupabaseKey = key;
+      return serverSupabaseClient;
+    } catch (err) {
+      console.warn("Failed to create server Supabase client:", err);
+      return null;
+    }
+  };
+
+  const fetchSupabaseServerDatabase = async (): Promise<any | null> => {
+    const client = getServerSupabaseClient();
+    if (!client) return null;
+    try {
+      const [assocRes, clientRes, txRes, payRes, msgRes, settingsRes] = await Promise.all([
+        client.from("associates").select("*"),
+        client.from("clients").select("*"),
+        client.from("transactions").select("*"),
+        client.from("payments").select("*"),
+        client.from("messages").select("*").order("timestamp", { ascending: true }),
+        client.from("system_settings").select("*"),
+      ]);
+
+      const hasTables =
+        !assocRes.error &&
+        !clientRes.error &&
+        !txRes.error &&
+        !payRes.error &&
+        !msgRes.error;
+
+      if (hasTables) {
+        const adminSetting = (settingsRes.data || []).find((s: any) => s.key === "admin");
+        const adminCreds = adminSetting
+          ? adminSetting.value
+          : { username: "admin", password: "admin123" };
+
+        const associates = (assocRes.data || []).map((a: any) => ({
+          id: a.id,
+          name: a.name,
+          phone: a.phone,
+          password: a.password || "assoc123",
+          email: a.email || "",
+          address: a.address || "",
+          status: a.status || "active",
+        }));
+
+        const clients = (clientRes.data || []).map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          phone: c.phone,
+          project: c.project,
+          price: Number(c.price || 0),
+          advance: Number(c.advance || 0),
+          associateId: c.associate_id || undefined,
+          date: c.date,
+        }));
+
+        const transactions = (txRes.data || []).map((t: any) => ({
+          id: t.id,
+          date: t.date,
+          clientId: t.client_id,
+          associateId: t.associate_id,
+          shareType: t.share_type,
+          amount: Number(t.amount || 0),
+          profit: Number(t.profit || 0),
+          kind: t.kind,
+          distributionId: t.distribution_id || undefined,
+        }));
+
+        const payments = (payRes.data || []).map((p: any) => ({
+          id: p.id,
+          associateId: p.associate_id,
+          date: p.date,
+          amount: Number(p.amount || 0),
+          parts: p.parts || {},
+          allocations: Array.isArray(p.allocations) ? p.allocations : [],
+        }));
+
+        const messages = (msgRes.data || []).map((m: any) => ({
+          id: m.id,
+          senderRole: m.sender_role,
+          senderId: m.sender_id,
+          senderName: m.sender_name,
+          receiverId: m.receiver_id,
+          receiverName: m.receiver_name || undefined,
+          associateId: m.associate_id,
+          subject: m.subject || undefined,
+          content: m.content,
+          timestamp: m.timestamp,
+          read: Boolean(m.read),
+          priority: m.priority || "normal",
+          category: m.category || "general",
+          isEdited: Boolean(m.is_edited),
+          editedAt: m.edited_at || undefined,
+        }));
+
+        if (associates.length > 0 || clients.length > 0 || messages.length > 0) {
+          return {
+            admin: adminCreds,
+            associates,
+            clients,
+            transactions,
+            payments,
+            messages,
+          };
+        }
+      }
+
+      // Check unified app_database store
+      const { data: storeData, error: storeErr } = await client
+        .from("app_database")
+        .select("data")
+        .eq("key", "main")
+        .maybeSingle();
+
+      if (!storeErr && storeData?.data) {
+        return storeData.data;
+      }
+    } catch (e) {
+      console.warn("Could not fetch database from Supabase on server:", e);
+    }
+    return null;
+  };
+
+  const saveSupabaseServerDatabase = async (validatedDb: any): Promise<boolean> => {
+    const client = getServerSupabaseClient();
+    if (!client) return false;
+    try {
+      const storePromise = client.from("app_database").upsert(
+        {
+          key: "main",
+          data: validatedDb,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "key" }
+      );
+
+      const associatesRows = (validatedDb.associates || []).map((a: any) => ({
+        id: a.id,
+        name: a.name,
+        phone: a.phone,
+        password: a.password || "assoc123",
+        email: a.email || null,
+        address: a.address || null,
+        status: a.status || "active",
+        updated_at: new Date().toISOString(),
+      }));
+
+      const clientsRows = (validatedDb.clients || []).map((c: any) => ({
+        id: c.id,
+        name: c.name,
+        phone: c.phone,
+        project: c.project,
+        price: c.price || 0,
+        advance: c.advance || 0,
+        associate_id: c.associateId || null,
+        date: c.date,
+        updated_at: new Date().toISOString(),
+      }));
+
+      const transactionsRows = (validatedDb.transactions || []).map((t: any) => ({
+        id: t.id,
+        date: t.date,
+        client_id: t.clientId,
+        associate_id: t.associateId,
+        share_type: t.shareType,
+        amount: t.amount || 0,
+        profit: t.profit || 0,
+        kind: t.kind,
+        distribution_id: t.distributionId || null,
+      }));
+
+      const paymentsRows = (validatedDb.payments || []).map((p: any) => ({
+        id: p.id,
+        associate_id: p.associateId,
+        date: p.date,
+        amount: p.amount || 0,
+        parts: p.parts || {},
+        allocations: p.allocations || [],
+      }));
+
+      const messagesRows = (validatedDb.messages || []).map((m: any) => ({
+        id: m.id,
+        sender_role: m.senderRole,
+        sender_id: m.senderId,
+        sender_name: m.senderName,
+        receiver_id: m.receiverId,
+        receiver_name: m.receiverName || null,
+        associate_id: m.associateId,
+        subject: m.subject || null,
+        content: m.content,
+        timestamp: m.timestamp,
+        read: Boolean(m.read),
+        priority: m.priority || "normal",
+        category: m.category || "general",
+        is_edited: Boolean(m.isEdited),
+        edited_at: m.editedAt || null,
+      }));
+
+      const settingsRows = [
+        { key: "admin", value: validatedDb.admin, updated_at: new Date().toISOString() },
+      ];
+
+      const results = await Promise.allSettled([
+        storePromise,
+        associatesRows.length > 0
+          ? client.from("associates").upsert(associatesRows, { onConflict: "id" })
+          : Promise.resolve(),
+        clientsRows.length > 0
+          ? client.from("clients").upsert(clientsRows, { onConflict: "id" })
+          : Promise.resolve(),
+        transactionsRows.length > 0
+          ? client.from("transactions").upsert(transactionsRows, { onConflict: "id" })
+          : Promise.resolve(),
+        paymentsRows.length > 0
+          ? client.from("payments").upsert(paymentsRows, { onConflict: "id" })
+          : Promise.resolve(),
+        messagesRows.length > 0
+          ? client.from("messages").upsert(messagesRows, { onConflict: "id" })
+          : Promise.resolve(),
+        client.from("system_settings").upsert(settingsRows, { onConflict: "key" }),
+      ]);
+
+      return results.some((r) => r.status === "fulfilled");
+    } catch (e) {
+      console.warn("Error saving to Supabase on server:", e);
+      return false;
+    }
+  };
+
   // Helper for server-side GitHub configuration
   const GITHUB_CONFIG_FILE = path.join(process.cwd(), "data", "github_config.json");
   let lastKnownGitHubSha: string | null = null;
-  let hasLocalUnpushedChanges: boolean = false;
 
   const getServerGitHubConfig = (): { owner: string; repo: string; branch: string; token: string } => {
     let config = {
@@ -253,10 +536,6 @@ ${clients
     await fs.promises.writeFile(GITHUB_CONFIG_FILE, JSON.stringify(merged, null, 2), "utf-8");
     return merged;
   };
-
-  // ==========================================
-  // AUTHORITATIVE DATABASE API (GITHUB / DISK)
-  // ==========================================
 
   // Helper to fetch latest data/hybrid_civil_database.json from GitHub
   const fetchGitHubDatabase = async (
@@ -286,19 +565,16 @@ ${clients
     return null;
   };
 
-  // GET /database - Load authoritative database directly from GitHub or local repository fallback
+  // ==========================================
+  // AUTHORITATIVE DATABASE API (SUPABASE / DISK / GITHUB)
+  // ==========================================
+
+  // GET /database - Load authoritative database directly from Supabase, or local repository fallback
   router.get("/database", async (req, res) => {
     try {
       res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
       res.setHeader("Pragma", "no-cache");
       res.setHeader("Expires", "0");
-
-      const serverConfig = getServerGitHubConfig();
-      const owner = (req.query.owner as string) || serverConfig.owner || "hybridcivil";
-      const repo = (req.query.repo as string) || serverConfig.repo || "associate";
-      const branch = (req.query.branch as string) || serverConfig.branch || "main";
-      // Prefer server-side stored token, fallback to query if supplied
-      const effectiveToken = serverConfig.token || (req.query.token as string) || "";
 
       const dbFilePath = path.join(process.cwd(), "data", "hybrid_civil_database.json");
       let localDb: any = null;
@@ -309,21 +585,49 @@ ${clients
         } catch (e) {}
       }
 
-      // 1. Authoritative check: When valid GitHub configuration exists, fetch latest data from GitHub
-      // Do this for normal background pulls too, not only forcePull=true
+      // 0. Primary Authoritative check: When Supabase is configured, fetch latest data from Supabase!
+      const supabaseConfig = getServerSupabaseConfig();
+      if (supabaseConfig.url && supabaseConfig.anonKey) {
+        try {
+          const supabaseData = await fetchSupabaseServerDatabase();
+          if (supabaseData && (Array.isArray(supabaseData.associates) || Array.isArray(supabaseData.messages))) {
+            let dataToUse = supabaseData;
+            if (localDb) {
+              dataToUse = mergeDatabases(supabaseData, localDb);
+            }
+            await fs.promises.mkdir(path.dirname(dbFilePath), { recursive: true });
+            await fs.promises.writeFile(dbFilePath, JSON.stringify(dataToUse, null, 2), "utf-8");
+
+            return res.json({
+              success: true,
+              source: "supabase",
+              data: dataToUse,
+              updatedAt: new Date().toISOString(),
+            });
+          }
+        } catch (sbErr) {
+          console.warn("Could not fetch database directly from Supabase, falling back:", sbErr);
+        }
+      }
+
+      // 1. Secondary check: GitHub API
+      const serverConfig = getServerGitHubConfig();
+      const owner = (req.query.owner as string) || serverConfig.owner || "hybridcivil";
+      const repo = (req.query.repo as string) || serverConfig.repo || "associate";
+      const branch = (req.query.branch as string) || serverConfig.branch || "main";
+      const effectiveToken = serverConfig.token || (req.query.token as string) || "";
+
       if (effectiveToken && effectiveToken.trim() && owner && repo) {
         try {
           const remoteResult = await fetchGitHubDatabase(owner, repo, branch, effectiveToken);
           if (remoteResult && remoteResult.data) {
             lastKnownGitHubSha = remoteResult.sha;
 
-            // Non-destructively merge remote data with local cache if local has unpushed messages/data
             let dataToUse = remoteResult.data;
             if (localDb) {
               dataToUse = mergeDatabases(remoteResult.data, localDb);
             }
 
-            // Update local server disk cache with latest authoritative data
             await fs.promises.mkdir(path.dirname(dbFilePath), { recursive: true });
             await fs.promises.writeFile(dbFilePath, JSON.stringify(dataToUse, null, 2), "utf-8");
 
@@ -351,39 +655,28 @@ ${clients
         });
       }
 
-      return res.status(404).json({ error: "Database file not found on server or GitHub." });
+      return res.status(404).json({ error: "Database file not found on server or remote." });
     } catch (err: any) {
       console.error("Failed to load database:", err);
       res.status(500).json({ error: err.message || "Failed to load database." });
     }
   });
 
-  // POST /database/save - Authoritative save to server repository and push to GitHub
-  // 1. Read latest from GitHub (if configured)
-  // 2. Merge incoming with latest GitHub using mergeDatabases()
-  // 3. Preserve all messages from both devices
-  // 4. Write merged database locally
-  // 5. Push to GitHub with SHA and handle 409 conflict retry once
+  // POST /database/save - Authoritative save to Supabase and local repository
   router.post("/database/save", async (req, res) => {
     try {
       res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
-      const serverConfig = getServerGitHubConfig();
       const {
         data,
         message,
-        owner = serverConfig.owner || "hybridcivil",
-        repo = serverConfig.repo || "associate",
-        branch = serverConfig.branch || "main",
+        owner,
+        repo,
+        branch = "main",
         token = "",
       } = req.body;
 
       if (!data || typeof data !== "object") {
         return res.status(400).json({ error: "Database data payload is required." });
-      }
-
-      const effectiveToken = serverConfig.token || (token && token.trim()) || "";
-      if (token && token.trim() && !serverConfig.token) {
-        saveServerGitHubConfig({ token: token.trim(), owner, repo, branch }).catch(() => {});
       }
 
       const dbFilePath = path.join(process.cwd(), "data", "hybrid_civil_database.json");
@@ -399,29 +692,21 @@ ${clients
       const deleteMatch = typeof message === "string" && message.match(/Delete message ([a-zA-Z0-9_-]+)/);
       const deletedMsgId = deleteMatch ? deleteMatch[1] : undefined;
 
-      // Step 1: Read latest from GitHub if configured
+      // Step 1: Read latest from Supabase if configured
       let remoteDb: any = null;
-      let remoteSha: string | undefined = undefined;
-
-      if (effectiveToken && effectiveToken.trim() && owner && repo) {
+      const serverSbCfg = getServerSupabaseConfig();
+      if (serverSbCfg.url && serverSbCfg.anonKey) {
         try {
-          const remoteFetch = await fetchGitHubDatabase(owner, repo, branch, effectiveToken);
-          if (remoteFetch) {
-            remoteDb = remoteFetch.data;
-            remoteSha = remoteFetch.sha;
-            lastKnownGitHubSha = remoteSha;
-          }
-        } catch (fetchErr) {
-          console.warn("Could not fetch remote before save, using local baseline:", fetchErr);
+          remoteDb = await fetchSupabaseServerDatabase();
+        } catch (sbErr) {
+          console.warn("Could not fetch remote from Supabase before save:", sbErr);
         }
       }
 
-      // Step 2: Merge the incoming database with the latest GitHub database (and current local db)
-      // Base is remote if available, else local
+      // Step 2: Merge the incoming database non-destructively
       const baseDb = remoteDb || currentLocalDb;
       let mergedDb = mergeDatabases(baseDb, data, deletedMsgId);
       if (currentLocalDb && baseDb !== currentLocalDb) {
-        // Also ensure any local-only messages aren't lost
         mergedDb = mergeDatabases(mergedDb, currentLocalDb, deletedMsgId);
       }
 
@@ -436,7 +721,7 @@ ${clients
       };
 
       // Step 3: Write the merged database locally
-      let jsonString = JSON.stringify(validatedDb, null, 2);
+      const jsonString = JSON.stringify(validatedDb, null, 2);
       await fs.promises.mkdir(path.dirname(dbFilePath), { recursive: true });
       await fs.promises.writeFile(dbFilePath, jsonString, "utf-8");
 
@@ -445,159 +730,83 @@ ${clients
       const overviewPath = path.join(process.cwd(), "PROJECT_OVERVIEW.md");
       await fs.promises.writeFile(overviewPath, overviewMd, "utf-8");
 
-      const commitMsg = message || `Update database state [${new Date().toISOString()}]`;
+      // Step 3.5: Push to Supabase!
+      let supabaseSaved = false;
+      if (serverSbCfg.url && serverSbCfg.anonKey) {
+        try {
+          supabaseSaved = await saveSupabaseServerDatabase(validatedDb);
+        } catch (sbSaveErr) {
+          console.warn("Supabase save attempt failed on server:", sbSaveErr);
+        }
+      }
 
-      // Status trackers
+      // Step 4: Optional GitHub push if configured
       let localSaved: boolean = true;
       let githubSaved: boolean = false;
       let githubCommitSha: string | null = null;
       let githubCommitUrl: string | null = null;
       let warning: string | undefined = undefined;
-      let error: string | undefined = undefined;
 
-      // Step 4: Push the merged database to GitHub
-      if (effectiveToken && effectiveToken.trim() && owner && repo) {
-        const cleanPath = "data/hybrid_civil_database.json";
-        const putUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${cleanPath}`;
+      const serverGhConfig = getServerGitHubConfig();
+      const effectiveGhToken = serverGhConfig.token || (token && token.trim()) || "";
+      const effectiveOwner = owner || serverGhConfig.owner || "hybridcivil";
+      const effectiveRepo = repo || serverGhConfig.repo || "associate";
 
-        const attemptPush = async (
-          dbToPush: any,
-          shaToUse?: string
-        ): Promise<{ ok: boolean; status: number; data?: any; errorText?: string }> => {
-          const contentStr = JSON.stringify(dbToPush, null, 2);
+      if (effectiveGhToken && effectiveOwner && effectiveRepo) {
+        try {
+          const cleanPath = "data/hybrid_civil_database.json";
+          const putUrl = `https://api.github.com/repos/${effectiveOwner}/${effectiveRepo}/contents/${cleanPath}`;
           const putPayload: any = {
-            message: commitMsg,
-            content: Buffer.from(contentStr).toString("base64"),
-            branch,
+            message: message || `Update database state [${new Date().toISOString()}]`,
+            content: Buffer.from(jsonString).toString("base64"),
+            branch: branch || "main",
           };
-          if (shaToUse) putPayload.sha = shaToUse;
+          if (lastKnownGitHubSha) putPayload.sha = lastKnownGitHubSha;
 
           const putRes = await fetch(putUrl, {
             method: "PUT",
             headers: {
-              ...getGitHubHeaders(effectiveToken),
+              ...getGitHubHeaders(effectiveGhToken),
               "Content-Type": "application/json",
             },
             body: JSON.stringify(putPayload),
-            signal: AbortSignal.timeout(10000),
+            signal: AbortSignal.timeout(8000),
           });
 
           if (putRes.ok) {
             const resData = await putRes.json();
-            return { ok: true, status: putRes.status, data: resData };
-          }
-          const errorText = await putRes.text();
-          return { ok: false, status: putRes.status, errorText };
-        };
-
-        // If we don't have remoteSha yet, attempt to fetch current blob SHA from GitHub
-        if (!remoteSha) {
-          try {
-            const checkUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${cleanPath}?ref=${branch}`;
-            const checkRes = await fetch(checkUrl, { headers: getGitHubHeaders(effectiveToken) });
-            if (checkRes.ok) {
-              const fileData = (await checkRes.json()) as any;
-              remoteSha = fileData.sha;
-            } else if (checkRes.status === 401) {
-              warning = "GitHub Personal Access Token is invalid or expired (401 Bad credentials). Local changes are safely saved to data/hybrid_civil_database.json.";
-            }
-          } catch {}
-        }
-
-        if (!warning) {
-          let pushResult = await attemptPush(validatedDb, remoteSha);
-
-          // Handle 409 Conflict: Re-fetch latest file, merge again, obtain new SHA, and retry once
-          if (!pushResult.ok && pushResult.status === 409) {
-            console.log("GitHub 409 conflict detected. Re-fetching latest remote database and merging...");
-            try {
-              const freshRemote = await fetchGitHubDatabase(owner, repo, branch, effectiveToken);
-              if (freshRemote) {
-                // Re-merge with the freshly updated remote database
-                const remerged = mergeDatabases(freshRemote.data, validatedDb, deletedMsgId);
-                const revalidated = {
-                  admin: remerged.admin || { username: "admin", password: "admin123" },
-                  associates: Array.isArray(remerged.associates) ? remerged.associates : [],
-                  clients: Array.isArray(remerged.clients) ? remerged.clients : [],
-                  transactions: Array.isArray(remerged.transactions) ? remerged.transactions : [],
-                  payments: Array.isArray(remerged.payments) ? remerged.payments : [],
-                  messages: Array.isArray(remerged.messages) ? remerged.messages : [],
-                };
-
-                // Update local file with re-merged content
-                jsonString = JSON.stringify(revalidated, null, 2);
-                await fs.promises.writeFile(dbFilePath, jsonString, "utf-8");
-
-                // Retry PUT with fresh SHA
-                pushResult = await attemptPush(revalidated, freshRemote.sha);
-              }
-            } catch (retryErr: any) {
-              console.warn("Failed during 409 conflict resolution:", retryErr);
-            }
-          }
-
-          if (pushResult.ok) {
             githubSaved = true;
-            lastKnownGitHubSha = pushResult.data?.content?.sha || pushResult.data?.commit?.sha || null;
-            githubCommitSha = pushResult.data?.commit?.sha?.substring(0, 7) || "latest";
-            githubCommitUrl = pushResult.data?.commit?.html_url || `https://github.com/${owner}/${repo}`;
-
-            // Push updated PROJECT_OVERVIEW.md in background (non-blocking)
-            (async () => {
-              try {
-                const ovCheck = await fetch(
-                  `https://api.github.com/repos/${owner}/${repo}/contents/PROJECT_OVERVIEW.md?ref=${branch}`,
-                  { headers: getGitHubHeaders(effectiveToken) }
-                );
-                let ovSha: string | undefined;
-                if (ovCheck.ok) {
-                  const ovData = (await ovCheck.json()) as any;
-                  ovSha = ovData.sha;
-                }
-                await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/PROJECT_OVERVIEW.md`, {
-                  method: "PUT",
-                  headers: {
-                    ...getGitHubHeaders(effectiveToken),
-                    "Content-Type": "application/json",
-                  },
-                  body: JSON.stringify({
-                    message: `Update PROJECT_OVERVIEW.md for ${commitMsg}`,
-                    content: Buffer.from(overviewMd).toString("base64"),
-                    branch,
-                    ...(ovSha ? { sha: ovSha } : {}),
-                  }),
-                });
-              } catch {}
-            })();
-          } else {
-            if (pushResult.status === 401) {
-              warning = "GitHub Personal Access Token is invalid or expired (401 Bad credentials). Local changes are safely saved.";
-            } else {
-              warning = `Saved locally, but GitHub remote returned status ${pushResult.status}`;
-            }
+            lastKnownGitHubSha = resData.content?.sha || resData.commit?.sha || null;
+            githubCommitSha = resData.commit?.sha?.substring(0, 7) || "latest";
+            githubCommitUrl = resData.commit?.html_url || `https://github.com/${effectiveOwner}/${effectiveRepo}`;
           }
+        } catch (ghErr) {
+          console.warn("Secondary GitHub push note:", ghErr);
         }
-      } else {
-        warning = "No GitHub token configured. Database saved to local repository.";
       }
 
       res.json({
         success: localSaved,
         localSaved,
+        supabaseSaved,
         githubSaved,
         githubCommitSha,
         githubCommitUrl,
         warning,
-        error,
-        message: githubSaved
+        message: supabaseSaved
+          ? "Synced to Supabase"
+          : githubSaved
           ? "Synced to GitHub"
           : "Saved locally",
+        supabase: {
+          success: supabaseSaved,
+          savedToSupabase: supabaseSaved,
+        },
         github: {
           success: githubSaved,
           pushedToGitHub: githubSaved,
           commitSha: githubCommitSha,
           commitUrl: githubCommitUrl,
-          warning,
         },
         data: validatedDb,
         updatedAt: new Date().toISOString(),
@@ -606,13 +815,135 @@ ${clients
       console.error("Failed to save database:", err);
       res.status(500).json({
         localSaved: false,
+        supabaseSaved: false,
         githubSaved: false,
         error: err.message || "Failed to save database.",
       });
     }
   });
 
-  // GET /github/config - Return current sync configuration status
+  // ==========================================
+  // SUPABASE CONFIG & TEST ENDPOINTS
+  // ==========================================
+
+  // GET /supabase/config
+  router.get("/supabase/config", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+    const config = getServerSupabaseConfig();
+    res.json({
+      success: true,
+      url: config.url,
+      hasKey: !!config.anonKey,
+      keyMasked: config.anonKey
+        ? `${config.anonKey.substring(0, 5)}...${config.anonKey.substring(config.anonKey.length - 4)}`
+        : null,
+      autoSync: config.autoSync,
+    });
+  });
+
+  // POST /supabase/config
+  router.post("/supabase/config", async (req, res) => {
+    try {
+      const { url, anonKey, autoSync } = req.body;
+      const updated = await saveServerSupabaseConfig({
+        ...(url !== undefined ? { url } : {}),
+        ...(anonKey !== undefined ? { anonKey } : {}),
+        ...(autoSync !== undefined ? { autoSync } : {}),
+      });
+      res.json({
+        success: true,
+        url: updated.url,
+        hasKey: !!updated.anonKey,
+        autoSync: updated.autoSync,
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to save Supabase config." });
+    }
+  });
+
+  // POST /supabase/test
+  router.post("/supabase/test", async (req, res) => {
+    try {
+      const { url: reqUrl, anonKey: reqKey } = req.body;
+      const currentCfg = getServerSupabaseConfig();
+      const testUrl = (reqUrl || currentCfg.url || "").trim();
+      const testKey = (reqKey || currentCfg.anonKey || "").trim();
+
+      if (!testUrl || !testKey) {
+        return res.status(400).json({
+          success: false,
+          error: "Supabase URL and API Key are required.",
+        });
+      }
+
+      const client = createClient(testUrl, testKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+
+      const tablesFound: string[] = [];
+      const { error: assocErr } = await client.from("associates").select("id").limit(1);
+      if (!assocErr) tablesFound.push("associates");
+
+      const { error: clientErr } = await client.from("clients").select("id").limit(1);
+      if (!clientErr) tablesFound.push("clients");
+
+      const { error: txErr } = await client.from("transactions").select("id").limit(1);
+      if (!txErr) tablesFound.push("transactions");
+
+      const { error: payErr } = await client.from("payments").select("id").limit(1);
+      if (!payErr) tablesFound.push("payments");
+
+      const { error: msgErr } = await client.from("messages").select("id").limit(1);
+      if (!msgErr) tablesFound.push("messages");
+
+      const { error: storeErr } = await client.from("app_database").select("key").limit(1);
+      if (!storeErr) tablesFound.push("app_database");
+
+      res.json({
+        success: true,
+        tablesFound,
+        mode: tablesFound.includes("associates") ? "tables" : tablesFound.includes("app_database") ? "store" : "connected_no_tables",
+        message: tablesFound.length > 0
+          ? `Connected to Supabase! Active tables: ${tablesFound.join(", ")}`
+          : "Connected to Supabase! Run the migration SQL or click Seed to create tables.",
+      });
+    } catch (err: any) {
+      res.status(500).json({
+        success: false,
+        error: err.message || "Failed to connect to Supabase.",
+      });
+    }
+  });
+
+  // POST /supabase/seed - Seed current server database into Supabase
+  router.post("/supabase/seed", async (req, res) => {
+    try {
+      const dbFilePath = path.join(process.cwd(), "data", "hybrid_civil_database.json");
+      let dataToSeed = req.body.data;
+      if (!dataToSeed && fs.existsSync(dbFilePath)) {
+        const raw = await fs.promises.readFile(dbFilePath, "utf-8");
+        dataToSeed = JSON.parse(raw);
+      }
+      if (!dataToSeed) {
+        return res.status(400).json({ error: "No database data found to seed." });
+      }
+
+      const ok = await saveSupabaseServerDatabase(dataToSeed);
+      if (ok) {
+        return res.json({ success: true, message: "Successfully seeded database to Supabase!" });
+      } else {
+        return res.status(500).json({ error: "Supabase client not configured or operation failed." });
+      }
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to seed Supabase database." });
+    }
+  });
+
+  // ==========================================
+  // GITHUB CONFIG ENDPOINTS (Retained for backwards compatibility)
+  // ==========================================
+
+  // GET /github/config
   router.get("/github/config", (_req, res) => {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
     const config = getServerGitHubConfig();
@@ -626,7 +957,7 @@ ${clients
     });
   });
 
-  // POST /github/config - Save GitHub configuration and token
+  // POST /github/config
   router.post("/github/config", async (req, res) => {
     try {
       const { owner, repo, branch, token } = req.body;
@@ -648,444 +979,7 @@ ${clients
     }
   });
 
-  // ==========================================
-  // GITHUB REPOSITORY SYNC & STORAGE API
-  // ==========================================
-
-  // 1. Get File Info from GitHub
-  router.post("/github/file-info", async (req, res) => {
-    try {
-      const { owner, repo, branch = "main", path: filePath, token } = req.body;
-      if (!owner || !repo || !filePath) {
-        return res.status(400).json({ error: "owner, repo, and path are required." });
-      }
-
-      if (!token) {
-        return res.json({
-          exists: false,
-          isDemo: true,
-          message: "No token provided. Running in simulated GitHub sync mode.",
-        });
-      }
-
-      const cleanPath = filePath.replace(/^\/+/, "");
-      const url = `https://api.github.com/repos/${owner}/${repo}/contents/${cleanPath}?ref=${branch}`;
-      const response = await fetch(url, {
-        headers: getGitHubHeaders(token),
-        signal: AbortSignal.timeout(6000),
-      });
-
-      if (response.status === 404) {
-        return res.json({ exists: false });
-      }
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          return res.json({
-            exists: true,
-            authError: true,
-            isDemo: true,
-            message: "GitHub token is invalid or expired (401 Bad credentials). Running in local mode.",
-          });
-        }
-        const errorText = await response.text();
-        return res.status(response.status).json({
-          error: `GitHub error (${response.status}): ${errorText}`,
-        });
-      }
-
-      const data = (await response.json()) as any;
-      let textContent: string | null = null;
-      if (data.content && data.encoding === "base64") {
-        textContent = Buffer.from(data.content, "base64").toString("utf-8");
-      }
-
-      res.json({
-        exists: true,
-        sha: data.sha,
-        size: data.size,
-        name: data.name,
-        path: data.path,
-        content: textContent,
-        html_url: data.html_url,
-      });
-    } catch (err: any) {
-      console.error("GitHub file-info error:", err);
-      res.status(500).json({ error: err.message || "Failed to inspect file on GitHub." });
-    }
-  });
-
-  // 2. Push / Create / Update File on GitHub
-  router.post("/github/push", async (req, res) => {
-    try {
-      const {
-        owner,
-        repo,
-        branch = "main",
-        path: filePath,
-        content,
-        message,
-        token,
-        sha: providedSha,
-      } = req.body;
-
-      if (!owner || !repo || !filePath || content === undefined) {
-        return res.status(400).json({
-          error: "owner, repo, path, and content are required.",
-        });
-      }
-
-      const cleanPath = filePath.replace(/^\/+/, "");
-      const commitMessage = message || `Update ${cleanPath} via Hybrid Civil Network`;
-
-      // Persist to local disk to keep local files in sync with repository
-      try {
-        const fullLocalPath = path.resolve(process.cwd(), cleanPath);
-        if (fullLocalPath.startsWith(process.cwd())) {
-          await fs.promises.mkdir(path.dirname(fullLocalPath), { recursive: true });
-          await fs.promises.writeFile(fullLocalPath, content, "utf-8");
-        }
-      } catch (localWriteErr) {
-        console.error("Local file sync write error:", localWriteErr);
-      }
-
-      if (!token || !token.trim()) {
-        const simSha = "sim-" + Math.random().toString(16).substring(2, 10);
-        const simCommit = Math.random().toString(16).substring(2, 9);
-        return res.json({
-          success: true,
-          simulated: true,
-          commitSha: simCommit,
-          fileSha: simSha,
-          commitUrl: `https://github.com/${owner}/${repo}/commit/${simCommit}`,
-          message: `[Simulated] Successfully saved and pushed ${cleanPath} to ${owner}/${repo}@${branch}`,
-          date: new Date().toISOString(),
-        });
-      }
-
-      let currentSha = providedSha;
-      if (!currentSha) {
-        const checkUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${cleanPath}?ref=${branch}`;
-        const checkRes = await fetch(checkUrl, {
-          headers: getGitHubHeaders(token),
-          signal: AbortSignal.timeout(6000),
-        });
-        if (checkRes.status === 401) {
-          const simCommit = Math.random().toString(16).substring(2, 9);
-          return res.json({
-            success: true,
-            simulated: true,
-            authError: true,
-            action: "push",
-            commitSha: simCommit,
-            commitUrl: `https://github.com/${owner}/${repo}`,
-            message: `Saved locally to repository file ${cleanPath}. (Note: GitHub token returned 401 Bad credentials. Update in GitHub Host settings).`,
-            warning: "GitHub token is invalid or expired (401 Bad credentials).",
-            date: new Date().toISOString(),
-          });
-        }
-        if (checkRes.ok) {
-          const fileData = (await checkRes.json()) as any;
-          currentSha = fileData.sha;
-        }
-      }
-
-      const base64Content = Buffer.from(content).toString("base64");
-
-      const putUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${cleanPath}`;
-      const payload: any = {
-        message: commitMessage,
-        content: base64Content,
-        branch,
-      };
-      if (currentSha) {
-        payload.sha = currentSha;
-      }
-
-      const putRes = await fetch(putUrl, {
-        method: "PUT",
-        headers: {
-          ...getGitHubHeaders(token),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(6000),
-      });
-
-      const resData = (await putRes.json()) as any;
-
-      if (!putRes.ok) {
-        if (putRes.status === 401) {
-          const simCommit = Math.random().toString(16).substring(2, 9);
-          return res.json({
-            success: true,
-            simulated: true,
-            authError: true,
-            action: currentSha ? "update" : "push",
-            commitSha: simCommit,
-            commitUrl: `https://github.com/${owner}/${repo}`,
-            message: `Saved locally to repository file ${cleanPath}. (Note: GitHub token returned 401 Bad credentials. Update in GitHub Host settings).`,
-            warning: "GitHub token is invalid or expired (401 Bad credentials).",
-            date: new Date().toISOString(),
-          });
-        }
-        return res.status(putRes.status).json({
-          error: resData.message || `GitHub error (${putRes.status}) while committing file.`,
-          details: resData,
-        });
-      }
-
-      res.json({
-        success: true,
-        action: currentSha ? "update" : "push",
-        commitSha: resData.commit?.sha?.substring(0, 7) || "latest",
-        fullSha: resData.commit?.sha,
-        fileSha: resData.content?.sha,
-        commitUrl: resData.commit?.html_url || `https://github.com/${owner}/${repo}`,
-        message: `Successfully ${currentSha ? "updated" : "pushed"} ${cleanPath} on branch ${branch}!`,
-        date: new Date().toISOString(),
-      });
-    } catch (err: any) {
-      console.error("GitHub push error:", err);
-      res.status(500).json({ error: err.message || "Failed to push file to GitHub." });
-    }
-  });
-
-  // 3. Delete File from GitHub
-  router.post("/github/delete", async (req, res) => {
-    try {
-      const {
-        owner,
-        repo,
-        branch = "main",
-        path: filePath,
-        message,
-        token,
-        sha: providedSha,
-      } = req.body;
-
-      if (!owner || !repo || !filePath) {
-        return res.status(400).json({
-          error: "owner, repo, and path are required to delete a file.",
-        });
-      }
-
-      const cleanPath = filePath.replace(/^\/+/, "");
-      const commitMessage = message || `Delete ${cleanPath} via Hybrid Civil Network`;
-
-      if (!token || !token.trim()) {
-        const simCommit = Math.random().toString(16).substring(2, 9);
-        return res.json({
-          success: true,
-          simulated: true,
-          commitSha: simCommit,
-          commitUrl: `https://github.com/${owner}/${repo}/commit/${simCommit}`,
-          message: `[Simulated] Successfully deleted ${cleanPath} from ${owner}/${repo}@${branch}`,
-          date: new Date().toISOString(),
-        });
-      }
-
-      let fileSha = providedSha;
-      if (!fileSha) {
-        const checkUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${cleanPath}?ref=${branch}`;
-        const checkRes = await fetch(checkUrl, {
-          headers: getGitHubHeaders(token),
-        });
-        if (!checkRes.ok) {
-          if (checkRes.status === 401) {
-            return res.json({
-              success: true,
-              simulated: true,
-              authError: true,
-              message: `Deleted ${cleanPath} locally. (GitHub token is invalid or expired).`,
-              date: new Date().toISOString(),
-            });
-          }
-          if (checkRes.status === 404) {
-            return res.status(404).json({ error: `File ${cleanPath} does not exist on branch ${branch}.` });
-          }
-          const errText = await checkRes.text();
-          return res.status(checkRes.status).json({ error: `Failed to find file SHA: ${errText}` });
-        }
-        const fileData = (await checkRes.json()) as any;
-        fileSha = fileData.sha;
-      }
-
-      const deleteUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${cleanPath}`;
-      const deleteRes = await fetch(deleteUrl, {
-        method: "DELETE",
-        headers: {
-          ...getGitHubHeaders(token),
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message: commitMessage,
-          sha: fileSha,
-          branch,
-        }),
-      });
-
-      const resData = (await deleteRes.json()) as any;
-
-      if (!deleteRes.ok) {
-        return res.status(deleteRes.status).json({
-          error: resData.message || `GitHub error (${deleteRes.status}) while deleting file.`,
-          details: resData,
-        });
-      }
-
-      res.json({
-        success: true,
-        action: "delete",
-        commitSha: resData.commit?.sha?.substring(0, 7) || "latest",
-        fullSha: resData.commit?.sha,
-        commitUrl: resData.commit?.html_url || `https://github.com/${owner}/${repo}`,
-        message: `Successfully deleted ${cleanPath} from repository.`,
-        date: new Date().toISOString(),
-      });
-    } catch (err: any) {
-      console.error("GitHub delete error:", err);
-      res.status(500).json({ error: err.message || "Failed to delete file from GitHub." });
-    }
-  });
-
-  // 4. List Recent Commits from Repository
-  router.post("/github/commits", async (req, res) => {
-    try {
-      const { owner, repo, token, path: filterPath, per_page = 8 } = req.body;
-      if (!owner || !repo) {
-        return res.status(400).json({ error: "owner and repo are required." });
-      }
-
-      if (!token) {
-        return res.json({
-          commits: [
-            {
-              sha: "7a9b1c2",
-              message: "Initial commit of Hybrid Civil Associate Network data",
-              author: owner || "hybridcivil",
-              date: new Date().toISOString(),
-              html_url: `https://github.com/${owner}/${repo}`,
-            },
-          ],
-          isDemo: true,
-        });
-      }
-
-      let url = `https://api.github.com/repos/${owner}/${repo}/commits?per_page=${per_page}`;
-      if (filterPath) {
-        url += `&path=${encodeURIComponent(filterPath.replace(/^\/+/, ""))}`;
-      }
-
-      const response = await fetch(url, {
-        headers: getGitHubHeaders(token),
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          return res.json({
-            commits: [
-              {
-                sha: "7a9b1c2",
-                message: "Repository data state (local fallback mode)",
-                author: owner || "hybridcivil",
-                date: new Date().toISOString(),
-                html_url: `https://github.com/${owner}/${repo}`,
-              },
-            ],
-            isDemo: true,
-            authError: true,
-          });
-        }
-        const errorText = await response.text();
-        return res.status(response.status).json({
-          error: `GitHub error (${response.status}): ${errorText}`,
-        });
-      }
-
-      const commitsData = (await response.json()) as any[];
-      const formatted = commitsData.map((c: any) => ({
-        sha: c.sha?.substring(0, 7),
-        fullSha: c.sha,
-        message: c.commit?.message || "No commit message",
-        author: c.commit?.author?.name || c.author?.login || "Unknown",
-        date: c.commit?.author?.date || new Date().toISOString(),
-        html_url: c.html_url,
-      }));
-
-      res.json({ commits: formatted });
-    } catch (err: any) {
-      console.error("GitHub commits error:", err);
-      res.status(500).json({ error: err.message || "Failed to fetch repository commits." });
-    }
-  });
-
-  // 5. List Files in Repository Directory
-  router.post("/github/list-files", async (req, res) => {
-    try {
-      const { owner, repo, token, branch = "main", path: dirPath = "" } = req.body;
-      if (!owner || !repo) {
-        return res.status(400).json({ error: "owner and repo are required." });
-      }
-
-      if (!token) {
-        return res.json({
-          files: [
-            { name: "data/hybrid_civil_database.json", path: "data/hybrid_civil_database.json", size: 4210, type: "file" },
-            { name: "data/transactions.csv", path: "data/transactions.csv", size: 1820, type: "file" },
-            { name: "PROJECT_OVERVIEW.md", path: "PROJECT_OVERVIEW.md", size: 2340, type: "file" },
-          ],
-          isDemo: true,
-        });
-      }
-
-      const cleanPath = dirPath.replace(/^\/+/, "");
-      const url = `https://api.github.com/repos/${owner}/${repo}/contents/${cleanPath}?ref=${branch}`;
-      const response = await fetch(url, {
-        headers: getGitHubHeaders(token),
-        signal: AbortSignal.timeout(6000),
-      });
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          return res.json({
-            files: [
-              { name: "data/hybrid_civil_database.json", path: "data/hybrid_civil_database.json", size: 4210, type: "file" },
-              { name: "data/transactions.csv", path: "data/transactions.csv", size: 1820, type: "file" },
-              { name: "PROJECT_OVERVIEW.md", path: "PROJECT_OVERVIEW.md", size: 2340, type: "file" },
-            ],
-            isDemo: true,
-            authError: true,
-          });
-        }
-        const errorText = await response.text();
-        return res.status(response.status).json({
-          error: `GitHub error (${response.status}): ${errorText}`,
-        });
-      }
-
-      const items = (await response.json()) as any[];
-      const files = Array.isArray(items)
-        ? items.map((it: any) => ({
-            name: it.name,
-            path: it.path,
-            sha: it.sha,
-            size: it.size,
-            type: it.type,
-            html_url: it.html_url,
-            download_url: it.download_url,
-          }))
-        : [];
-
-      res.json({ files });
-    } catch (err: any) {
-      console.error("GitHub list-files error:", err);
-      res.status(500).json({ error: err.message || "Failed to list repository files." });
-    }
-  });
-
   // Mount router at both '/api' and '/'
-  // This guarantees that whether Vercel rewrites to '/api/...' or directly to '/...', the routes always match!
   app.use("/api", router);
   app.use("/", router);
 

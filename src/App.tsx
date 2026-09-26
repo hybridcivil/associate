@@ -19,6 +19,7 @@ import { ProfitEntryView } from './components/ProfitEntryView';
 import { TransactionsView } from './components/TransactionsView';
 import { MyProfileView } from './components/MyProfileView';
 import { MessagesView } from './components/MessagesView';
+import { SupabaseDatabaseView } from './components/SupabaseDatabaseView';
 import { LoginModal } from './components/LoginModal';
 import { SyncSettingsModal } from './components/SyncSettingsModal';
 
@@ -196,17 +197,17 @@ export default function App() {
   // If role is associate, ensure they cannot stay on admin-only tabs
   useEffect(() => {
     if (session && session.role === 'associate') {
-      const adminTabs: TabKey[] = ['associates', 'clients', 'profit'];
+      const adminTabs: TabKey[] = ['associates', 'clients', 'profit', 'supabase'];
       if (adminTabs.includes(currentTab)) {
         setCurrentTab('dashboard');
       }
     }
   }, [session, currentTab]);
 
-  // If tab was previously set to 'github', default to dashboard
+  // If tab was previously set to 'github', default to supabase
   useEffect(() => {
     if (currentTab === ('github' as TabKey)) {
-      setCurrentTab('dashboard');
+      setCurrentTab('supabase');
     }
   }, [currentTab]);
 
@@ -293,6 +294,14 @@ export default function App() {
                 session={session}
                 onUpdateDb={handleUpdateDb}
                 onPullLatest={() => pullLatestData(false)}
+              />
+            )}
+
+            {currentTab === 'supabase' && session.role === 'admin' && (
+              <SupabaseDatabaseView
+                db={db}
+                onUpdateDb={handleUpdateDb}
+                onOpenSettings={() => setIsSyncModalOpen(true)}
               />
             )}
 

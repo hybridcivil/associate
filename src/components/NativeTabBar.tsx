@@ -8,6 +8,7 @@ import {
   Receipt,
   MessageSquare,
   UserCircle,
+  Database,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -72,6 +73,12 @@ export const NativeTabBar: React.FC<NativeTabBarProps> = ({
       label: 'Messages',
       icon: MessageSquare,
       badge: unreadMessagesCount > 0 ? unreadMessagesCount : undefined,
+    },
+    {
+      id: 'supabase',
+      label: 'Supabase DB',
+      icon: Database,
+      adminOnly: true,
     },
     {
       id: 'myprofile',

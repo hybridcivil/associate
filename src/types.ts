@@ -104,9 +104,17 @@ export interface GitHubRepoFile {
   download_url?: string;
 }
 
+export interface SupabaseConfig {
+  url: string;
+  anonKey: string;
+  serviceRoleKey?: string;
+  autoSync: boolean;
+}
+
 export interface SaveStatus {
   success: boolean;
   localSaved: boolean;
+  supabaseSaved?: boolean;
   githubSaved: boolean;
   githubCommitSha?: string | null;
   githubCommitUrl?: string | null;
@@ -124,5 +132,6 @@ export type TabKey =
   | 'profit'
   | 'transactions'
   | 'messages'
+  | 'supabase'
   | 'github'
   | 'myprofile';

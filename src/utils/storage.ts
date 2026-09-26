@@ -9,7 +9,27 @@ import {
   GitHubConfig,
   GitHubCommitLog,
   SaveStatus,
+  SupabaseConfig,
 } from '../types';
+import {
+  fetchFromSupabase,
+  saveToSupabase,
+  loadSupabaseConfig,
+  saveSupabaseConfig,
+  testSupabaseConnection,
+  fetchServerSupabaseConfig,
+  saveServerSupabaseConfig,
+} from './supabase';
+
+export {
+  fetchFromSupabase,
+  saveToSupabase,
+  loadSupabaseConfig,
+  saveSupabaseConfig,
+  testSupabaseConnection,
+  fetchServerSupabaseConfig,
+  saveServerSupabaseConfig,
+};
 
 export const STORAGE_KEY = 'hybridCivilAssociateNetwork_v2';
 export const SESSION_KEY = 'hybridCivilSession_auth';
@@ -17,7 +37,7 @@ export const GITHUB_CONFIG_KEY = 'hybridCivilGitHubConfig_v1';
 export const GITHUB_LOGS_KEY = 'hybridCivilGitHubLogs_v1';
 export const DELETED_MSGS_KEY = 'hybridCivilDeletedMsgs_v1';
 
-export type { AppDatabase, SaveStatus };
+export type { AppDatabase, SaveStatus, SupabaseConfig };
 
 export function getDeletedMessageIds(): Set<string> {
   try {
@@ -467,15 +487,34 @@ export async function fetchAuthoritativeDatabase(forcePull: boolean = false): Pr
   source: string;
   sha?: string;
 }> {
+  // 1. Try client-side direct Supabase fetch if configured
+  try {
+    const sbConfig = loadSupabaseConfig();
+    if (sbConfig.url && sbConfig.anonKey) {
+      const sbResult = await fetchFromSupabase();
+      if (sbResult.success && sbResult.data && Array.isArray(sbResult.data.associates)) {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(sbResult.data));
+        } catch (e) {}
+        return {
+          success: true,
+          data: sbResult.data,
+          source: sbResult.source,
+        };
+      }
+    }
+  } catch (sbErr) {
+    console.warn('Client Supabase fetch fallback to API:', sbErr);
+  }
+
+  // 2. Fetch from server API (which checks server Supabase first, then local/GitHub)
   try {
     const config = loadGitHubConfig();
     const params = new URLSearchParams();
     if (config?.owner) params.set('owner', config.owner);
     if (config?.repo) params.set('repo', config.repo);
     if (config?.branch) params.set('branch', config.branch);
-    // Note: Do NOT expose the token in URL query strings! The server uses server-side configured token.
     if (forcePull) params.set('forcePull', 'true');
-
     params.set('_t', Date.now().toString());
 
     const res = await fetch(`/api/database?${params.toString()}`, {
@@ -510,7 +549,6 @@ export async function fetchAuthoritativeDatabase(forcePull: boolean = false): Pr
           messages: Array.isArray(json.data.messages) ? json.data.messages : [],
         };
 
-        // Cache locally for offline resilience
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(authoritativeData));
         } catch (e) {}
@@ -518,13 +556,13 @@ export async function fetchAuthoritativeDatabase(forcePull: boolean = false): Pr
         return {
           success: true,
           data: authoritativeData,
-          source: json.source || 'github',
+          source: json.source || 'server',
           sha: json.sha,
         };
       }
     }
   } catch (e) {
-    console.warn('Could not fetch authoritative database from GitHub/server:', e);
+    console.warn('Could not fetch authoritative database from server:', e);
   }
 
   return {
@@ -535,11 +573,13 @@ export async function fetchAuthoritativeDatabase(forcePull: boolean = false): Pr
 }
 
 /**
- * Saves database directly to GitHub and server repository.
- * Merges with authoritative GitHub database, handles conflict resolution,
- * and reports accurate local vs. GitHub save status.
+ * Saves database directly to Supabase and server repository.
+ * Keeps local cache responsive with zero latency.
  */
-export async function saveDatabase(data: AppDatabase, commitMessage?: string): Promise<SaveStatus & { data?: AppDatabase }> {
+export async function saveDatabase(
+  data: AppDatabase,
+  commitMessage?: string
+): Promise<SaveStatus & { data?: AppDatabase }> {
   // 1. Instant local cache update so UI is immediately responsive
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -547,7 +587,18 @@ export async function saveDatabase(data: AppDatabase, commitMessage?: string): P
     console.error('Local cache save error:', e);
   }
 
-  // 2. Authoritative save to GitHub & server repository
+  // 1.5 Client-side direct Supabase sync in background
+  let clientSbSaved = false;
+  try {
+    const sbConfig = loadSupabaseConfig();
+    if (sbConfig.url && sbConfig.anonKey && sbConfig.autoSync !== false) {
+      saveToSupabase(data).then((res) => {
+        if (res.success) clientSbSaved = true;
+      }).catch(() => {});
+    }
+  } catch (e) {}
+
+  // 2. Authoritative save to server (which persists to Supabase + local repository)
   try {
     const config = loadGitHubConfig();
     const res = await fetch('/api/database/save', {
@@ -565,25 +616,10 @@ export async function saveDatabase(data: AppDatabase, commitMessage?: string): P
 
     if (res.ok) {
       const json = await res.json();
+      const isSupabaseSaved = Boolean(json.supabaseSaved ?? json.supabase?.savedToSupabase ?? clientSbSaved);
       const isGithubSaved = Boolean(json.githubSaved ?? json.github?.pushedToGitHub ?? false);
       const commitSha = json.githubCommitSha || json.github?.commitSha || null;
       const commitUrl = json.githubCommitUrl || json.github?.commitUrl || null;
-
-      if (isGithubSaved && commitSha) {
-        const newLog: GitHubCommitLog = {
-          id: 'log-' + Date.now(),
-          sha: commitSha,
-          message: commitMessage || 'Auto-sync database to GitHub repository',
-          action: 'update',
-          filePath: 'data/hybrid_civil_database.json',
-          date: new Date().toISOString(),
-          status: 'success',
-          htmlUrl: commitUrl || undefined,
-          author: config?.owner || 'hybridcivil',
-        };
-        const existing = loadGitHubLogs();
-        saveGitHubLogs([newLog, ...existing]);
-      }
 
       // If server returned merged data, update localStorage cache non-destructively
       let finalMergedData = data;
@@ -597,13 +633,18 @@ export async function saveDatabase(data: AppDatabase, commitMessage?: string): P
       return {
         success: true,
         localSaved: Boolean(json.localSaved ?? true),
+        supabaseSaved: isSupabaseSaved,
         githubSaved: isGithubSaved,
         githubCommitSha: commitSha,
         githubCommitUrl: commitUrl,
         warning: json.warning,
         error: json.error,
         authError: json.authError || json.github?.authError,
-        message: isGithubSaved ? 'Synced to GitHub' : 'Saved locally',
+        message: isSupabaseSaved
+          ? 'Synced to Supabase'
+          : isGithubSaved
+          ? 'Synced to GitHub'
+          : 'Saved locally',
         data: finalMergedData,
       };
     } else {
@@ -611,6 +652,7 @@ export async function saveDatabase(data: AppDatabase, commitMessage?: string): P
       return {
         success: false,
         localSaved: false,
+        supabaseSaved: false,
         githubSaved: false,
         error: errJson.error || `Server returned error ${res.status}`,
         message: 'Save failed',
@@ -620,9 +662,10 @@ export async function saveDatabase(data: AppDatabase, commitMessage?: string): P
     return {
       success: true, // Local cache was saved in step 1
       localSaved: true,
+      supabaseSaved: clientSbSaved,
       githubSaved: false,
       warning: err.message || 'Server connection failed',
-      message: 'Saved locally',
+      message: clientSbSaved ? 'Synced to Supabase' : 'Saved locally',
     };
   }
 }

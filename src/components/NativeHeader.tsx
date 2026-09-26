@@ -14,8 +14,9 @@ interface NativeHeaderProps {
   onOpenSyncSettings?: () => void;
   syncAction?: 'idle' | 'pulling' | 'pushing';
   saveStatus?: {
-    githubSaved: boolean;
-    localSaved: boolean;
+    supabaseSaved?: boolean;
+    githubSaved?: boolean;
+    localSaved?: boolean;
     message?: string;
   } | null;
   onSyncDatabase?: () => void;
@@ -32,16 +33,21 @@ export const NativeHeader: React.FC<NativeHeaderProps> = ({
 }) => {
   const isAdmin = session.role === 'admin';
 
-  const isGitHubSynced = saveStatus ? saveStatus.githubSaved : true;
+  const isSupabaseSynced = saveStatus?.supabaseSaved;
+  const isGitHubSynced = saveStatus?.githubSaved;
+  const isHealthy = isSupabaseSynced || isGitHubSynced || saveStatus === null || saveStatus === undefined;
+
   const statusText = syncAction === 'pushing'
-    ? 'Pushing...'
+    ? 'Syncing...'
     : syncAction === 'pulling'
     ? 'Pulling...'
+    : saveStatus?.supabaseSaved
+    ? 'Synced to Supabase'
     : saveStatus?.githubSaved
     ? 'Synced to GitHub'
-    : saveStatus?.localSaved && !saveStatus?.githubSaved
+    : saveStatus?.localSaved
     ? 'Saved locally'
-    : 'Live Network';
+    : 'Supabase Active';
 
   return (
     <header className="bg-[#10243a]/95 backdrop-blur-md text-white border-b border-white/10 select-none shadow-md">
@@ -78,7 +84,7 @@ export const NativeHeader: React.FC<NativeHeaderProps> = ({
                 : `Sync Status: ${statusText}`
             }
             className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg select-none transition-all ${
-              !isGitHubSynced
+              !isHealthy
                 ? 'bg-amber-500/20 border border-amber-400/40 text-amber-300'
                 : 'bg-emerald-500/15 border border-emerald-400/30 text-emerald-300'
             } ${
@@ -89,7 +95,7 @@ export const NativeHeader: React.FC<NativeHeaderProps> = ({
           >
             <Radio
               className={`w-3.5 h-3.5 ${
-                !isGitHubSynced ? 'text-amber-400' : 'text-emerald-400'
+                !isHealthy ? 'text-amber-400' : 'text-emerald-400'
               } ${
                 syncAction === 'pushing' || syncAction === 'pulling' ? 'animate-spin' : 'animate-pulse'
               }`}
