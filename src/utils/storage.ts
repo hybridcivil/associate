@@ -36,6 +36,8 @@ export const SESSION_KEY = 'hybridCivilSession_auth';
 export const GITHUB_CONFIG_KEY = 'hybridCivilGitHubConfig_v1';
 export const GITHUB_LOGS_KEY = 'hybridCivilGitHubLogs_v1';
 export const DELETED_MSGS_KEY = 'hybridCivilDeletedMsgs_v1';
+export const DELETED_ASSOCS_KEY = 'hybridCivilDeletedAssocs_v1';
+export const DELETED_CLIENTS_KEY = 'hybridCivilDeletedClients_v1';
 
 export type { AppDatabase, SaveStatus, SupabaseConfig };
 
@@ -56,6 +58,46 @@ export function recordDeletedMessageId(msgId: string) {
     ids.add(msgId);
     const arr = Array.from(ids).slice(-200);
     localStorage.setItem(DELETED_MSGS_KEY, JSON.stringify(arr));
+  } catch (e) {}
+}
+
+export function getDeletedAssociateIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(DELETED_ASSOCS_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return new Set(arr);
+    }
+  } catch (e) {}
+  return new Set();
+}
+
+export function recordDeletedAssociateId(assocId: string) {
+  try {
+    const ids = getDeletedAssociateIds();
+    ids.add(assocId);
+    const arr = Array.from(ids).slice(-200);
+    localStorage.setItem(DELETED_ASSOCS_KEY, JSON.stringify(arr));
+  } catch (e) {}
+}
+
+export function getDeletedClientIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(DELETED_CLIENTS_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return new Set(arr);
+    }
+  } catch (e) {}
+  return new Set();
+}
+
+export function recordDeletedClientId(clientId: string) {
+  try {
+    const ids = getDeletedClientIds();
+    ids.add(clientId);
+    const arr = Array.from(ids).slice(-200);
+    localStorage.setItem(DELETED_CLIENTS_KEY, JSON.stringify(arr));
   } catch (e) {}
 }
 
@@ -361,7 +403,13 @@ const INITIAL_DATA: AppDatabase = {
 /**
  * Merge two databases non-destructively so NO messages or records are ever lost.
  */
-export function mergeDatabases(localDb: AppDatabase, remoteDb: AppDatabase, deletedMsgId?: string): AppDatabase {
+export function mergeDatabases(
+  localDb: AppDatabase,
+  remoteDb: AppDatabase,
+  deletedMsgId?: string,
+  deletedAssocId?: string,
+  deletedClientId?: string
+): AppDatabase {
   if (!localDb) return remoteDb || INITIAL_DATA;
   if (!remoteDb) return localDb || INITIAL_DATA;
 
@@ -377,6 +425,18 @@ export function mergeDatabases(localDb: AppDatabase, remoteDb: AppDatabase, dele
     }
   }
 
+  // Handle explicit associate deletions
+  if (deletedAssocId) {
+    recordDeletedAssociateId(deletedAssocId);
+    associateMap.delete(deletedAssocId);
+  }
+
+  // Filter out any known deleted associate IDs so they never resurrect
+  const deletedAssocIds = getDeletedAssociateIds();
+  for (const delId of deletedAssocIds) {
+    associateMap.delete(delId);
+  }
+
   // 2. Merge clients (union by id)
   const clientMap = new Map<string, any>();
   for (const c of (localDb.clients || [])) {
@@ -387,6 +447,18 @@ export function mergeDatabases(localDb: AppDatabase, remoteDb: AppDatabase, dele
       const existing = clientMap.get(c.id);
       clientMap.set(c.id, existing ? { ...existing, ...c } : c);
     }
+  }
+
+  // Handle explicit client deletions
+  if (deletedClientId) {
+    recordDeletedClientId(deletedClientId);
+    clientMap.delete(deletedClientId);
+  }
+
+  // Filter out any known deleted client IDs so they never resurrect
+  const deletedClientIds = getDeletedClientIds();
+  for (const delId of deletedClientIds) {
+    clientMap.delete(delId);
   }
 
   // 3. Merge transactions (union by id)
@@ -467,6 +539,19 @@ export function loadDatabase(): AppDatabase {
       if (parsed && Array.isArray(parsed.associates)) {
         if (!Array.isArray(parsed.messages)) {
           parsed.messages = INITIAL_DATA.messages || [];
+        }
+        // Filter out any deleted associates/clients/messages
+        const deletedAssocIds = getDeletedAssociateIds();
+        if (deletedAssocIds.size > 0) {
+          parsed.associates = parsed.associates.filter((a: any) => a && !deletedAssocIds.has(a.id));
+        }
+        const deletedClientIds = getDeletedClientIds();
+        if (deletedClientIds.size > 0) {
+          parsed.clients = (parsed.clients || []).filter((c: any) => c && !deletedClientIds.has(c.id));
+        }
+        const deletedMsgIds = getDeletedMessageIds();
+        if (deletedMsgIds.size > 0) {
+          parsed.messages = (parsed.messages || []).filter((m: any) => m && !deletedMsgIds.has(m.id));
         }
         return parsed;
       }
@@ -580,6 +665,20 @@ export async function saveDatabase(
   data: AppDatabase,
   commitMessage?: string
 ): Promise<SaveStatus & { data?: AppDatabase }> {
+  // Extract any deletion intent
+  const deleteMsgMatch = typeof commitMessage === 'string' && commitMessage.match(/Delete message ([a-zA-Z0-9_-]+)/);
+  const deletedMsgId = deleteMsgMatch ? deleteMsgMatch[1] : undefined;
+
+  const deleteAssocMatch = typeof commitMessage === 'string' && commitMessage.match(/Delete associate ([a-zA-Z0-9_-]+)/);
+  const deletedAssocId = deleteAssocMatch ? deleteAssocMatch[1] : undefined;
+
+  const deleteClientMatch = typeof commitMessage === 'string' && commitMessage.match(/Delete client ([a-zA-Z0-9_-]+)/);
+  const deletedClientId = deleteClientMatch ? deleteClientMatch[1] : undefined;
+
+  if (deletedAssocId) recordDeletedAssociateId(deletedAssocId);
+  if (deletedClientId) recordDeletedClientId(deletedClientId);
+  if (deletedMsgId) recordDeletedMessageId(deletedMsgId);
+
   // 1. Instant local cache update so UI is immediately responsive
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -592,7 +691,7 @@ export async function saveDatabase(
   try {
     const sbConfig = loadSupabaseConfig();
     if (sbConfig.url && sbConfig.anonKey && sbConfig.autoSync !== false) {
-      saveToSupabase(data).then((res) => {
+      saveToSupabase(data, deletedAssocId, deletedClientId).then((res) => {
         if (res.success) clientSbSaved = true;
       }).catch(() => {});
     }
@@ -607,6 +706,9 @@ export async function saveDatabase(
       body: JSON.stringify({
         data,
         message: commitMessage || `Update database state [${new Date().toLocaleTimeString()}]`,
+        deletedAssocId,
+        deletedClientId,
+        deletedMsgId,
         owner: config?.owner || 'hybridcivil',
         repo: config?.repo || 'associate',
         branch: config?.branch || 'main',
@@ -624,7 +726,7 @@ export async function saveDatabase(
       // If server returned merged data, update localStorage cache non-destructively
       let finalMergedData = data;
       if (json.data && Array.isArray(json.data.messages)) {
-        finalMergedData = mergeDatabases(data, json.data);
+        finalMergedData = mergeDatabases(data, json.data, deletedMsgId, deletedAssocId, deletedClientId);
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(finalMergedData));
         } catch (e) {}

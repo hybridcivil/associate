@@ -174,7 +174,13 @@ export default function App() {
     const deleteMatch = typeof commitMsg === 'string' && commitMsg.match(/Delete message ([a-zA-Z0-9_-]+)/);
     const deletedMsgId = deleteMatch ? deleteMatch[1] : undefined;
 
-    const merged = mergeDatabases(dbRef.current, updated, deletedMsgId);
+    const deleteAssocMatch = typeof commitMsg === 'string' && commitMsg.match(/Delete associate ([a-zA-Z0-9_-]+)/);
+    const deletedAssocId = deleteAssocMatch ? deleteAssocMatch[1] : undefined;
+
+    const deleteClientMatch = typeof commitMsg === 'string' && commitMsg.match(/Delete client ([a-zA-Z0-9_-]+)/);
+    const deletedClientId = deleteClientMatch ? deleteClientMatch[1] : undefined;
+
+    const merged = mergeDatabases(dbRef.current, updated, deletedMsgId, deletedAssocId, deletedClientId);
 
     lastLocalSaveTimeRef.current = Date.now();
     setDb(merged);
@@ -190,7 +196,13 @@ export default function App() {
     try {
       statusResult = await saveDatabase(merged, commitMsg);
       if (statusResult.data) {
-        const finalMerged = mergeDatabases(dbRef.current, statusResult.data, deletedMsgId);
+        const finalMerged = mergeDatabases(
+          dbRef.current,
+          statusResult.data,
+          deletedMsgId,
+          deletedAssocId,
+          deletedClientId
+        );
         setDb(finalMerged);
         dbRef.current = finalMerged;
       }

@@ -62,6 +62,54 @@ export function saveSupabaseConfig(config: SupabaseConfig) {
   }
 }
 
+function getLocalDeletedAssociateIds(): Set<string> {
+  try {
+    const raw = typeof window !== 'undefined' ? localStorage.getItem('hybridCivilDeletedAssocs_v1') : null;
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return new Set(arr);
+    }
+  } catch (e) {}
+  return new Set();
+}
+
+function getLocalDeletedClientIds(): Set<string> {
+  try {
+    const raw = typeof window !== 'undefined' ? localStorage.getItem('hybridCivilDeletedClients_v1') : null;
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return new Set(arr);
+    }
+  } catch (e) {}
+  return new Set();
+}
+
+export async function deleteAssociateFromSupabase(assocId: string): Promise<boolean> {
+  const cfg = loadSupabaseConfig();
+  const client = getSupabaseClient(cfg.url, cfg.anonKey);
+  if (!client || !assocId) return false;
+  try {
+    const { error } = await client.from('associates').delete().eq('id', assocId);
+    return !error;
+  } catch (err) {
+    console.warn('Failed to delete associate from Supabase:', err);
+    return false;
+  }
+}
+
+export async function deleteClientFromSupabase(clientId: string): Promise<boolean> {
+  const cfg = loadSupabaseConfig();
+  const client = getSupabaseClient(cfg.url, cfg.anonKey);
+  if (!client || !clientId) return false;
+  try {
+    const { error } = await client.from('clients').delete().eq('id', clientId);
+    return !error;
+  } catch (err) {
+    console.warn('Failed to delete client from Supabase:', err);
+    return false;
+  }
+}
+
 /**
  * Returns an initialized SupabaseClient, or null if configuration is missing
  */
@@ -305,26 +353,32 @@ export async function fetchFromSupabase(): Promise<{
       const adminSetting = (settingsRes.data || []).find((s: any) => s.key === 'admin');
       const adminCreds = adminSetting ? adminSetting.value : { username: 'admin', password: 'admin123' };
 
-      const associates: Associate[] = (assocRes.data || []).map((a: any) => ({
-        id: a.id,
-        name: a.name,
-        phone: a.phone,
-        password: a.password || 'assoc123',
-        email: a.email || '',
-        address: a.address || '',
-        status: a.status || 'active',
-      }));
+      const deletedAssocIds = getLocalDeletedAssociateIds();
+      const associates: Associate[] = (assocRes.data || [])
+        .filter((a: any) => a && !deletedAssocIds.has(a.id))
+        .map((a: any) => ({
+          id: a.id,
+          name: a.name,
+          phone: a.phone,
+          password: a.password || 'assoc123',
+          email: a.email || '',
+          address: a.address || '',
+          status: a.status || 'active',
+        }));
 
-      const clients: Client[] = (clientRes.data || []).map((c: any) => ({
-        id: c.id,
-        name: c.name,
-        phone: c.phone,
-        project: c.project,
-        price: Number(c.price || 0),
-        advance: Number(c.advance || 0),
-        associateId: c.associate_id || undefined,
-        date: c.date,
-      }));
+      const deletedClientIds = getLocalDeletedClientIds();
+      const clients: Client[] = (clientRes.data || [])
+        .filter((c: any) => c && !deletedClientIds.has(c.id))
+        .map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          phone: c.phone,
+          project: c.project,
+          price: Number(c.price || 0),
+          advance: Number(c.advance || 0),
+          associateId: c.associate_id || undefined,
+          date: c.date,
+        }));
 
       const transactions: Transaction[] = (txRes.data || []).map((t: any) => ({
         id: t.id,
@@ -414,7 +468,11 @@ export async function fetchFromSupabase(): Promise<{
 /**
  * Saves and upserts database to Supabase (both relational tables and snapshot backup)
  */
-export async function saveToSupabase(db: AppDatabase): Promise<{
+export async function saveToSupabase(
+  db: AppDatabase,
+  deletedAssocId?: string,
+  deletedClientId?: string
+): Promise<{
   success: boolean;
   message?: string;
   error?: string;
@@ -425,6 +483,28 @@ export async function saveToSupabase(db: AppDatabase): Promise<{
   }
 
   try {
+    // Delete any explicitly removed entities directly from relational tables
+    const deleteTasks: Promise<any>[] = [];
+    if (deletedAssocId) {
+      deleteTasks.push(Promise.resolve(client.from('associates').delete().eq('id', deletedAssocId)));
+    }
+    const localDeletedAssocIds = getLocalDeletedAssociateIds();
+    for (const delId of localDeletedAssocIds) {
+      deleteTasks.push(Promise.resolve(client.from('associates').delete().eq('id', delId)));
+    }
+
+    if (deletedClientId) {
+      deleteTasks.push(Promise.resolve(client.from('clients').delete().eq('id', deletedClientId)));
+    }
+    const localDeletedClientIds = getLocalDeletedClientIds();
+    for (const delId of localDeletedClientIds) {
+      deleteTasks.push(Promise.resolve(client.from('clients').delete().eq('id', delId)));
+    }
+
+    if (deleteTasks.length > 0) {
+      await Promise.allSettled(deleteTasks);
+    }
+
     // 1. Upsert snapshot into app_database
     const storePromise = client.from('app_database').upsert(
       {

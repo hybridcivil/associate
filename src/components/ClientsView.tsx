@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AppDatabase, Client } from '../types';
-import { generateId, saveDatabase, formatMoney } from '../utils/storage';
+import { generateId, saveDatabase, formatMoney, recordDeletedClientId } from '../utils/storage';
+import { deleteClientFromSupabase } from '../utils/supabase';
 import {
   Briefcase,
   Search,
@@ -12,17 +13,21 @@ import {
   UserCheck,
   CheckCircle,
   AlertCircle,
+  AlertTriangle,
+  RefreshCw,
   X,
 } from 'lucide-react';
 
 interface ClientsViewProps {
   db: AppDatabase;
-  onUpdateDb: (updated: AppDatabase) => void;
+  onUpdateDb: (updated: AppDatabase, commitMsg?: string) => Promise<any> | void;
 }
 
 export const ClientsView: React.FC<ClientsViewProps> = ({ db, onUpdateDb }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
   // Form states
   const [name, setName] = useState('');
@@ -68,25 +73,36 @@ export const ClientsView: React.FC<ClientsViewProps> = ({ db, onUpdateDb }) => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleDeleteClick = (id: string) => {
-    const client = db.clients.find((c) => c.id === id);
-    if (!client) return;
-    if (
-      !confirm(
-        `Delete client agreement "${client.name}"? Past transaction records will be retained.`
-      )
-    ) {
-      return;
-    }
+  const handleDeleteClick = (client: Client) => {
+    setClientToDelete(client);
+  };
 
-    const updatedClients = db.clients.filter((c) => c.id !== id);
-    const updatedDb: AppDatabase = {
-      ...db,
-      clients: updatedClients,
-    };
-    saveDatabase(updatedDb);
-    onUpdateDb(updatedDb);
-    showNotice(`Client "${client.name}" deleted.`, 'success');
+  const confirmDeleteClient = async () => {
+    if (!clientToDelete) return;
+    const target = clientToDelete;
+    setIsDeleting(true);
+
+    try {
+      recordDeletedClientId(target.id);
+
+      const updatedClients = db.clients.filter((c) => c.id !== target.id);
+      const updatedDb: AppDatabase = {
+        ...db,
+        clients: updatedClients,
+      };
+
+      await onUpdateDb(updatedDb, `Delete client ${target.id}`);
+      await saveDatabase(updatedDb, `Delete client ${target.id}`);
+
+      deleteClientFromSupabase(target.id).catch(() => {});
+
+      showNotice(`Client agreement "${target.name}" removed successfully.`, 'success');
+      setClientToDelete(null);
+    } catch (err: any) {
+      showNotice(`Failed to remove client: ${err.message || 'Error'}`, 'error');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -439,8 +455,8 @@ export const ClientsView: React.FC<ClientsViewProps> = ({ db, onUpdateDb }) => {
                           </button>
                           <button
                             id={`delete-client-${client.id}`}
-                            onClick={() => handleDeleteClick(client.id)}
-                            className="p-1 rounded-md text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition-colors"
+                            onClick={() => handleDeleteClick(client)}
+                            className="p-1 rounded-md text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer"
                             title="Delete Client"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -455,6 +471,65 @@ export const ClientsView: React.FC<ClientsViewProps> = ({ db, onUpdateDb }) => {
           </table>
         </div>
       </div>
+
+      {/* Modern In-App Delete Confirmation Modal */}
+      {clientToDelete && (
+        <div className="fixed inset-0 z-50 bg-[#0d1f33]/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm sm:max-w-md shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-5 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center flex-shrink-0 text-rose-600">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Remove Client Agreement</h3>
+                  <p className="text-xs text-slate-500">
+                    Agreement record deletion
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3 bg-rose-50/70 border border-rose-100 rounded-xl text-xs text-slate-700 space-y-1">
+                <p>
+                  Are you sure you want to remove <span className="font-bold text-rose-900">{clientToDelete.name}</span> ({clientToDelete.project})?
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  Past commission allocations and transaction history will remain preserved.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={() => setClientToDelete(null)}
+                  className="px-3.5 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={confirmDeleteClient}
+                  className="px-4 py-2 rounded-lg text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 transition-colors shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {isDeleting ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Deleting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Yes, Remove</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -5,9 +5,9 @@ import {
   saveDatabase,
   calculateAssociateTotals,
   formatMoney,
-  syncDatabaseToGitHub,
-  loadGitHubConfig,
+  recordDeletedAssociateId,
 } from '../utils/storage';
+import { deleteAssociateFromSupabase } from '../utils/supabase';
 import {
   Users,
   UserPlus,
@@ -22,12 +22,13 @@ import {
   MapPin,
   X,
   AlertCircle,
-  Github,
+  AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
 
 interface AssociatesViewProps {
   db: AppDatabase;
-  onUpdateDb: (updated: AppDatabase) => void;
+  onUpdateDb: (updated: AppDatabase, commitMsg?: string) => Promise<any> | void;
 }
 
 export const AssociatesView: React.FC<AssociatesViewProps> = ({
@@ -36,6 +37,8 @@ export const AssociatesView: React.FC<AssociatesViewProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [associateToDelete, setAssociateToDelete] = useState<Associate | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
   // Form states
   const [name, setName] = useState('');
@@ -76,35 +79,41 @@ export const AssociatesView: React.FC<AssociatesViewProps> = ({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleDeleteClick = (id: string) => {
-    const assoc = db.associates.find((a) => a.id === id);
-    if (!assoc) return;
-    if (
-      !confirm(
-        `Are you sure you want to remove "${assoc.name}"? Existing distribution records will be preserved.`
-      )
-    ) {
-      return;
+  const handleDeleteClick = (assoc: Associate) => {
+    setAssociateToDelete(assoc);
+  };
+
+  const confirmDelete = async () => {
+    if (!associateToDelete) return;
+    const target = associateToDelete;
+    setIsDeleting(true);
+
+    try {
+      // 1. Record ID in deleted set so background poller never resurrects it
+      recordDeletedAssociateId(target.id);
+
+      // 2. Filter from database
+      const updatedAssociates = db.associates.filter((a) => a.id !== target.id);
+      const updatedDb: AppDatabase = {
+        ...db,
+        associates: updatedAssociates,
+      };
+
+      // 3. Update memory, storage and push to server/database
+      await onUpdateDb(updatedDb, `Delete associate ${target.id}`);
+      await saveDatabase(updatedDb, `Delete associate ${target.id}`);
+
+      // 4. Direct delete call to Supabase and API endpoint
+      deleteAssociateFromSupabase(target.id).catch(() => {});
+      fetch(`/api/associates/${target.id}`, { method: 'DELETE' }).catch(() => {});
+
+      showNotice(`Associate "${target.name}" was removed successfully.`, 'success');
+      setAssociateToDelete(null);
+    } catch (err: any) {
+      showNotice(`Failed to remove associate: ${err.message || 'Error'}`, 'error');
+    } finally {
+      setIsDeleting(false);
     }
-
-    const updatedAssociates = db.associates.filter((a) => a.id !== id);
-    const updatedDb: AppDatabase = {
-      ...db,
-      associates: updatedAssociates,
-    };
-    saveDatabase(updatedDb);
-    onUpdateDb(updatedDb);
-    showNotice(`Associate "${assoc.name}" was removed.`, 'success');
-
-    // Auto-update to GitHub repository
-    syncDatabaseToGitHub(
-      updatedDb,
-      `Associate removed: ${assoc.name} (${assoc.phone})`
-    ).then((res) => {
-      if (res.success) {
-        showNotice(`Associate "${assoc.name}" removed & auto-synced to GitHub (${res.commitSha})!`, 'success');
-      }
-    }).catch(() => {});
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -176,26 +185,12 @@ export const AssociatesView: React.FC<AssociatesViewProps> = ({
     saveDatabase(updatedDb);
     onUpdateDb(updatedDb);
     resetForm();
-
-    // Auto-update to GitHub repository
-    try {
-      const ghResult = await syncDatabaseToGitHub(
-        updatedDb,
-        isNew
-          ? `Add new associate: ${targetName} (${targetPhone})`
-          : `Update associate: ${targetName} (${targetPhone})`
-      );
-      if (ghResult.success) {
-        showNotice(
-          isNew
-            ? `Associate "${targetName}" registered & auto-synced to GitHub (${ghResult.commitSha})!`
-            : `Associate "${targetName}" updated & auto-synced to GitHub (${ghResult.commitSha})!`,
-          'success'
-        );
-      }
-    } catch {
-      // Benign fallback
-    }
+    showNotice(
+      isNew
+        ? `Associate "${targetName}" registered successfully.`
+        : `Associate "${targetName}" updated successfully.`,
+      'success'
+    );
   };
 
   const filteredAssociates = db.associates.filter((a) => {
@@ -485,8 +480,8 @@ export const AssociatesView: React.FC<AssociatesViewProps> = ({
                           </button>
                           <button
                             id={`delete-assoc-${assoc.id}`}
-                            onClick={() => handleDeleteClick(assoc.id)}
-                            className="p-1 rounded-md text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition-colors"
+                            onClick={() => handleDeleteClick(assoc)}
+                            className="p-1 rounded-md text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer"
                             title="Delete Associate"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -501,6 +496,65 @@ export const AssociatesView: React.FC<AssociatesViewProps> = ({
           </table>
         </div>
       </div>
+
+      {/* Modern In-App Delete Confirmation Modal (Cannot be blocked by iframe/browser) */}
+      {associateToDelete && (
+        <div className="fixed inset-0 z-50 bg-[#0d1f33]/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm sm:max-w-md shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-5 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center flex-shrink-0 text-rose-600">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Remove Associate</h3>
+                  <p className="text-xs text-slate-500">
+                    Directory deletion & record synchronization
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-3 bg-rose-50/70 border border-rose-100 rounded-xl text-xs text-slate-700 space-y-1">
+                <p>
+                  Are you sure you want to remove <span className="font-bold text-rose-900">{associateToDelete.name}</span> ({associateToDelete.phone})?
+                </p>
+                <p className="text-[11px] text-slate-500">
+                  Historical profit distributions and transaction allocations will remain preserved.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={() => setAssociateToDelete(null)}
+                  className="px-3.5 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={confirmDelete}
+                  className="px-4 py-2 rounded-lg text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 transition-colors shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {isDeleting ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Deleting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Yes, Remove</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
