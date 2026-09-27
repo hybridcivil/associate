@@ -38,6 +38,7 @@ export const GITHUB_LOGS_KEY = 'hybridCivilGitHubLogs_v1';
 export const DELETED_MSGS_KEY = 'hybridCivilDeletedMsgs_v1';
 export const DELETED_ASSOCS_KEY = 'hybridCivilDeletedAssocs_v1';
 export const DELETED_CLIENTS_KEY = 'hybridCivilDeletedClients_v1';
+export const DELETED_TXS_KEY = 'hybridCivilDeletedTxs_v1';
 
 export type { AppDatabase, SaveStatus, SupabaseConfig };
 
@@ -98,6 +99,35 @@ export function recordDeletedClientId(clientId: string) {
     ids.add(clientId);
     const arr = Array.from(ids).slice(-200);
     localStorage.setItem(DELETED_CLIENTS_KEY, JSON.stringify(arr));
+  } catch (e) {}
+}
+
+export function getDeletedTransactionIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(DELETED_TXS_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return new Set(arr);
+    }
+  } catch (e) {}
+  return new Set();
+}
+
+export function recordDeletedTransactionId(txId: string) {
+  try {
+    const ids = getDeletedTransactionIds();
+    ids.add(txId);
+    const arr = Array.from(ids).slice(-300);
+    localStorage.setItem(DELETED_TXS_KEY, JSON.stringify(arr));
+  } catch (e) {}
+}
+
+export function recordDeletedTransactionIds(txIds: string[]) {
+  try {
+    const ids = getDeletedTransactionIds();
+    for (const id of txIds) ids.add(id);
+    const arr = Array.from(ids).slice(-300);
+    localStorage.setItem(DELETED_TXS_KEY, JSON.stringify(arr));
   } catch (e) {}
 }
 
@@ -408,7 +438,8 @@ export function mergeDatabases(
   remoteDb: AppDatabase,
   deletedMsgId?: string,
   deletedAssocId?: string,
-  deletedClientId?: string
+  deletedClientId?: string,
+  deletedTxId?: string | string[]
 ): AppDatabase {
   if (!localDb) return remoteDb || INITIAL_DATA;
   if (!remoteDb) return localDb || INITIAL_DATA;
@@ -468,6 +499,23 @@ export function mergeDatabases(
   }
   for (const t of (remoteDb.transactions || [])) {
     if (t && t.id) txMap.set(t.id, t);
+  }
+
+  // Handle explicit transaction deletions
+  if (deletedTxId) {
+    if (Array.isArray(deletedTxId)) {
+      recordDeletedTransactionIds(deletedTxId);
+      for (const id of deletedTxId) txMap.delete(id);
+    } else {
+      recordDeletedTransactionId(deletedTxId);
+      txMap.delete(deletedTxId);
+    }
+  }
+
+  // Filter out any known deleted transaction IDs so they never resurrect
+  const deletedTxIds = getDeletedTransactionIds();
+  for (const delId of deletedTxIds) {
+    txMap.delete(delId);
   }
 
   // 4. Merge payments (union by id)
@@ -540,7 +588,7 @@ export function loadDatabase(): AppDatabase {
         if (!Array.isArray(parsed.messages)) {
           parsed.messages = INITIAL_DATA.messages || [];
         }
-        // Filter out any deleted associates/clients/messages
+        // Filter out any deleted associates/clients/messages/transactions
         const deletedAssocIds = getDeletedAssociateIds();
         if (deletedAssocIds.size > 0) {
           parsed.associates = parsed.associates.filter((a: any) => a && !deletedAssocIds.has(a.id));
@@ -548,6 +596,10 @@ export function loadDatabase(): AppDatabase {
         const deletedClientIds = getDeletedClientIds();
         if (deletedClientIds.size > 0) {
           parsed.clients = (parsed.clients || []).filter((c: any) => c && !deletedClientIds.has(c.id));
+        }
+        const deletedTxIds = getDeletedTransactionIds();
+        if (deletedTxIds.size > 0) {
+          parsed.transactions = (parsed.transactions || []).filter((t: any) => t && !deletedTxIds.has(t.id));
         }
         const deletedMsgIds = getDeletedMessageIds();
         if (deletedMsgIds.size > 0) {
@@ -578,6 +630,24 @@ export async function fetchAuthoritativeDatabase(forcePull: boolean = false): Pr
     if (sbConfig.url && sbConfig.anonKey) {
       const sbResult = await fetchFromSupabase();
       if (sbResult.success && sbResult.data && Array.isArray(sbResult.data.associates)) {
+        const deletedAssocs = getDeletedAssociateIds();
+        const deletedClients = getDeletedClientIds();
+        const deletedTxs = getDeletedTransactionIds();
+        const deletedMsgs = getDeletedMessageIds();
+
+        if (deletedAssocs.size > 0 && Array.isArray(sbResult.data.associates)) {
+          sbResult.data.associates = sbResult.data.associates.filter((a: any) => a && !deletedAssocs.has(a.id));
+        }
+        if (deletedClients.size > 0 && Array.isArray(sbResult.data.clients)) {
+          sbResult.data.clients = sbResult.data.clients.filter((c: any) => c && !deletedClients.has(c.id));
+        }
+        if (deletedTxs.size > 0 && Array.isArray(sbResult.data.transactions)) {
+          sbResult.data.transactions = sbResult.data.transactions.filter((t: any) => t && !deletedTxs.has(t.id));
+        }
+        if (deletedMsgs.size > 0 && Array.isArray(sbResult.data.messages)) {
+          sbResult.data.messages = sbResult.data.messages.filter((m: any) => m && !deletedMsgs.has(m.id));
+        }
+
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(sbResult.data));
         } catch (e) {}
@@ -625,13 +695,26 @@ export async function fetchAuthoritativeDatabase(forcePull: boolean = false): Pr
           json.data.payments = [];
         }
 
+        const deletedAssocs = getDeletedAssociateIds();
+        const deletedClients = getDeletedClientIds();
+        const deletedTxs = getDeletedTransactionIds();
+        const deletedMsgs = getDeletedMessageIds();
+
         const authoritativeData: AppDatabase = {
           admin: json.data.admin || INITIAL_DATA.admin,
-          associates: Array.isArray(json.data.associates) ? json.data.associates : [],
-          clients: Array.isArray(json.data.clients) ? json.data.clients : [],
-          transactions: Array.isArray(json.data.transactions) ? json.data.transactions : [],
+          associates: (Array.isArray(json.data.associates) ? json.data.associates : []).filter(
+            (a: any) => a && !deletedAssocs.has(a.id)
+          ),
+          clients: (Array.isArray(json.data.clients) ? json.data.clients : []).filter(
+            (c: any) => c && !deletedClients.has(c.id)
+          ),
+          transactions: (Array.isArray(json.data.transactions) ? json.data.transactions : []).filter(
+            (t: any) => t && !deletedTxs.has(t.id)
+          ),
           payments: Array.isArray(json.data.payments) ? json.data.payments : [],
-          messages: Array.isArray(json.data.messages) ? json.data.messages : [],
+          messages: (Array.isArray(json.data.messages) ? json.data.messages : []).filter(
+            (m: any) => m && !deletedMsgs.has(m.id)
+          ),
         };
 
         try {
@@ -675,9 +758,18 @@ export async function saveDatabase(
   const deleteClientMatch = typeof commitMessage === 'string' && commitMessage.match(/Delete client ([a-zA-Z0-9_-]+)/);
   const deletedClientId = deleteClientMatch ? deleteClientMatch[1] : undefined;
 
+  const deleteTxMatch = typeof commitMessage === 'string' && commitMessage.match(/Delete transaction ([a-zA-Z0-9_-]+)/);
+  const singleTxId = deleteTxMatch ? deleteTxMatch[1] : undefined;
+
+  const deleteTxsMatch = typeof commitMessage === 'string' && commitMessage.match(/Delete transactions ([a-zA-Z0-9_,-]+)/);
+  const multiTxIds = deleteTxsMatch ? deleteTxsMatch[1].split(',') : undefined;
+
+  const deletedTxIds = multiTxIds || (singleTxId ? [singleTxId] : undefined);
+
   if (deletedAssocId) recordDeletedAssociateId(deletedAssocId);
   if (deletedClientId) recordDeletedClientId(deletedClientId);
   if (deletedMsgId) recordDeletedMessageId(deletedMsgId);
+  if (deletedTxIds) recordDeletedTransactionIds(deletedTxIds);
 
   // 1. Instant local cache update so UI is immediately responsive
   try {
@@ -691,7 +783,7 @@ export async function saveDatabase(
   try {
     const sbConfig = loadSupabaseConfig();
     if (sbConfig.url && sbConfig.anonKey && sbConfig.autoSync !== false) {
-      saveToSupabase(data, deletedAssocId, deletedClientId).then((res) => {
+      saveToSupabase(data, deletedAssocId, deletedClientId, deletedTxIds).then((res) => {
         if (res.success) clientSbSaved = true;
       }).catch(() => {});
     }
@@ -709,6 +801,7 @@ export async function saveDatabase(
         deletedAssocId,
         deletedClientId,
         deletedMsgId,
+        deletedTxIds,
         owner: config?.owner || 'hybridcivil',
         repo: config?.repo || 'associate',
         branch: config?.branch || 'main',
@@ -726,7 +819,14 @@ export async function saveDatabase(
       // If server returned merged data, update localStorage cache non-destructively
       let finalMergedData = data;
       if (json.data && Array.isArray(json.data.messages)) {
-        finalMergedData = mergeDatabases(data, json.data, deletedMsgId, deletedAssocId, deletedClientId);
+        finalMergedData = mergeDatabases(
+          data,
+          json.data,
+          deletedMsgId,
+          deletedAssocId,
+          deletedClientId,
+          deletedTxIds
+        );
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(finalMergedData));
         } catch (e) {}

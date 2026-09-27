@@ -92,20 +92,28 @@ export const AssociatesView: React.FC<AssociatesViewProps> = ({
       // 1. Record ID in deleted set so background poller never resurrects it
       recordDeletedAssociateId(target.id);
 
-      // 2. Filter from database
+      // 2. Direct server deletion first
+      try {
+        await fetch(`/api/associates/${target.id}`, { method: 'DELETE' });
+      } catch (e) {
+        console.warn('API associate delete note:', e);
+      }
+      deleteAssociateFromSupabase(target.id).catch(() => {});
+
+      // 3. Filter from database state
       const updatedAssociates = db.associates.filter((a) => a.id !== target.id);
       const updatedDb: AppDatabase = {
         ...db,
         associates: updatedAssociates,
       };
 
-      // 3. Update memory, storage and push to server/database
+      // 4. Update memory, storage and push to server/database once
       await onUpdateDb(updatedDb, `Delete associate ${target.id}`);
-      await saveDatabase(updatedDb, `Delete associate ${target.id}`);
 
-      // 4. Direct delete call to Supabase and API endpoint
-      deleteAssociateFromSupabase(target.id).catch(() => {});
-      fetch(`/api/associates/${target.id}`, { method: 'DELETE' }).catch(() => {});
+      // 5. Clean up editing state if deleted associate was being edited
+      if (editingId === target.id) {
+        resetForm();
+      }
 
       showNotice(`Associate "${target.name}" was removed successfully.`, 'success');
       setAssociateToDelete(null);

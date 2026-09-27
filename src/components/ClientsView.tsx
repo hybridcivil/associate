@@ -85,6 +85,11 @@ export const ClientsView: React.FC<ClientsViewProps> = ({ db, onUpdateDb }) => {
     try {
       recordDeletedClientId(target.id);
 
+      try {
+        await fetch(`/api/clients/${target.id}`, { method: 'DELETE' });
+      } catch (e) {}
+      deleteClientFromSupabase(target.id).catch(() => {});
+
       const updatedClients = db.clients.filter((c) => c.id !== target.id);
       const updatedDb: AppDatabase = {
         ...db,
@@ -92,9 +97,10 @@ export const ClientsView: React.FC<ClientsViewProps> = ({ db, onUpdateDb }) => {
       };
 
       await onUpdateDb(updatedDb, `Delete client ${target.id}`);
-      await saveDatabase(updatedDb, `Delete client ${target.id}`);
 
-      deleteClientFromSupabase(target.id).catch(() => {});
+      if (editingId === target.id) {
+        resetForm();
+      }
 
       showNotice(`Client agreement "${target.name}" removed successfully.`, 'success');
       setClientToDelete(null);

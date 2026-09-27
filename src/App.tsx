@@ -180,7 +180,22 @@ export default function App() {
     const deleteClientMatch = typeof commitMsg === 'string' && commitMsg.match(/Delete client ([a-zA-Z0-9_-]+)/);
     const deletedClientId = deleteClientMatch ? deleteClientMatch[1] : undefined;
 
-    const merged = mergeDatabases(dbRef.current, updated, deletedMsgId, deletedAssocId, deletedClientId);
+    const deleteTxMatch = typeof commitMsg === 'string' && commitMsg.match(/Delete transaction ([a-zA-Z0-9_-]+)/);
+    const singleTxId = deleteTxMatch ? deleteTxMatch[1] : undefined;
+
+    const deleteTxsMatch = typeof commitMsg === 'string' && commitMsg.match(/Delete transactions ([a-zA-Z0-9_,-]+)/);
+    const multiTxIds = deleteTxsMatch ? deleteTxsMatch[1].split(',') : undefined;
+
+    const deletedTxIds = multiTxIds || (singleTxId ? [singleTxId] : undefined);
+
+    const merged = mergeDatabases(
+      dbRef.current,
+      updated,
+      deletedMsgId,
+      deletedAssocId,
+      deletedClientId,
+      deletedTxIds
+    );
 
     lastLocalSaveTimeRef.current = Date.now();
     setDb(merged);
@@ -201,7 +216,8 @@ export default function App() {
           statusResult.data,
           deletedMsgId,
           deletedAssocId,
-          deletedClientId
+          deletedClientId,
+          deletedTxIds
         );
         setDb(finalMerged);
         dbRef.current = finalMerged;

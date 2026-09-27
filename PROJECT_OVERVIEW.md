@@ -1,13 +1,13 @@
 # HYBRID CIVIL — Associate Network Repository
 *Comprehensive Civil Engineering Consultancy & 90/5/5 Profit Distribution System*
 
-**Updated On:** Sat, 26 Sep 2026 21:27:40 GMT
+**Updated On:** Sun, 27 Sep 2026 08:19:32 GMT
 
 ---
 
 ## 🏗️ Executive Summary
 - **Active Civil Engineering Associates:** 6
-- **Client & Project Agreements:** 2
+- **Client & Project Agreements:** 4
 - **Total Net Project Profit Accounted:** ৳240,000
 - **Associate Earnings (Direct 5% + Equal 5% Pool):** ৳24,000
 - **Total Disbursements Completed:** ৳9,500
@@ -25,20 +25,22 @@
 ## 👥 Certified Associate Roster
 | Associate Name | Phone | Email | Status |
 | :--- | :--- | :--- | :--- |
+| **Engr. Rakibul Hasan** | `01933000333` | rakibul@hybridcivil.net | ACTIVE |
+| **Arefin** | `+880 1911-605771` | arefin@gmail.com | ACTIVE |
 | **Engr. Tanvir Ahmed** | `01711000111` | tanvir.civil@hybridcivil.net | ACTIVE |
 | **Engr. Nadia Sultana** | `01822000222` | nadia.struct@hybridcivil.net | ACTIVE |
-| **Engr. Rakibul Hasan** | `01933000333` | rakibul@hybridcivil.net | ACTIVE |
 | **Ar. Farhana Kabir** | `01644000444` | farhana.design@hybridcivil.net | ACTIVE |
-| **xyz** | `2207` | ffg@gg.com | ACTIVE |
-| **adf** | `1234` | vhhh@g.com | ACTIVE |
+| **ashraf** | `01717` | bnd@g.c | ACTIVE |
 
 ---
 
 ## 💼 Active Client Projects
 | Client Name | Phone | Service / Scope | Price (BDT) | Advance Paid |
 | :--- | :--- | :--- | :--- | :--- |
-| **Al-Madina Real Estate Ltd.** | `01755123456` | G+9 Commercial & Residential Complex | ৳280,000 | ৳140,000 |
 | **Beximco Industrial Park** | `01866234567` | Steel Shed Foundation & Substructure Analysis | ৳450,000 | ৳250,000 |
+| **Dr. Rafiqul Islam Residence** | `01977345678` | Soil Investigation & G+4 Structural Design | ৳180,000 | ৳90,000 |
+| **Al-Madina Real Estate Ltd.** | `01755123456` | G+9 Commercial & Residential Complex | ৳280,000 | ৳140,000 |
+| **abc** | `2888` | ffgh | ৳100 | ৳50 |
 
 ---
 *Generated automatically by Hybrid Civil Associate Network Web App.*

@@ -84,6 +84,17 @@ function getLocalDeletedClientIds(): Set<string> {
   return new Set();
 }
 
+function getLocalDeletedTransactionIds(): Set<string> {
+  try {
+    const raw = typeof window !== 'undefined' ? localStorage.getItem('hybridCivilDeletedTxs_v1') : null;
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return new Set(arr);
+    }
+  } catch (e) {}
+  return new Set();
+}
+
 export async function deleteAssociateFromSupabase(assocId: string): Promise<boolean> {
   const cfg = loadSupabaseConfig();
   const client = getSupabaseClient(cfg.url, cfg.anonKey);
@@ -106,6 +117,32 @@ export async function deleteClientFromSupabase(clientId: string): Promise<boolea
     return !error;
   } catch (err) {
     console.warn('Failed to delete client from Supabase:', err);
+    return false;
+  }
+}
+
+export async function deleteTransactionFromSupabase(txId: string): Promise<boolean> {
+  const cfg = loadSupabaseConfig();
+  const client = getSupabaseClient(cfg.url, cfg.anonKey);
+  if (!client || !txId) return false;
+  try {
+    const { error } = await client.from('transactions').delete().eq('id', txId);
+    return !error;
+  } catch (err) {
+    console.warn('Failed to delete transaction from Supabase:', err);
+    return false;
+  }
+}
+
+export async function deleteTransactionsFromSupabase(txIds: string[]): Promise<boolean> {
+  const cfg = loadSupabaseConfig();
+  const client = getSupabaseClient(cfg.url, cfg.anonKey);
+  if (!client || !txIds || txIds.length === 0) return false;
+  try {
+    const { error } = await client.from('transactions').delete().in('id', txIds);
+    return !error;
+  } catch (err) {
+    console.warn('Failed to delete transactions from Supabase:', err);
     return false;
   }
 }
@@ -380,17 +417,20 @@ export async function fetchFromSupabase(): Promise<{
           date: c.date,
         }));
 
-      const transactions: Transaction[] = (txRes.data || []).map((t: any) => ({
-        id: t.id,
-        date: t.date,
-        clientId: t.client_id,
-        associateId: t.associate_id,
-        shareType: t.share_type,
-        amount: Number(t.amount || 0),
-        profit: Number(t.profit || 0),
-        kind: t.kind,
-        distributionId: t.distribution_id || undefined,
-      }));
+      const deletedTxIds = getLocalDeletedTransactionIds();
+      const transactions: Transaction[] = (txRes.data || [])
+        .filter((t: any) => t && !deletedTxIds.has(t.id))
+        .map((t: any) => ({
+          id: t.id,
+          date: t.date,
+          clientId: t.client_id,
+          associateId: t.associate_id,
+          shareType: t.share_type,
+          amount: Number(t.amount || 0),
+          profit: Number(t.profit || 0),
+          kind: t.kind,
+          distributionId: t.distribution_id || undefined,
+        }));
 
       const payments: Payment[] = (payRes.data || []).map((p: any) => ({
         id: p.id,
@@ -471,7 +511,8 @@ export async function fetchFromSupabase(): Promise<{
 export async function saveToSupabase(
   db: AppDatabase,
   deletedAssocId?: string,
-  deletedClientId?: string
+  deletedClientId?: string,
+  deletedTxIds?: string[]
 ): Promise<{
   success: boolean;
   message?: string;
@@ -499,6 +540,14 @@ export async function saveToSupabase(
     const localDeletedClientIds = getLocalDeletedClientIds();
     for (const delId of localDeletedClientIds) {
       deleteTasks.push(Promise.resolve(client.from('clients').delete().eq('id', delId)));
+    }
+
+    if (deletedTxIds && deletedTxIds.length > 0) {
+      deleteTasks.push(Promise.resolve(client.from('transactions').delete().in('id', deletedTxIds)));
+    }
+    const localDeletedTxIds = getLocalDeletedTransactionIds();
+    if (localDeletedTxIds.size > 0) {
+      deleteTasks.push(Promise.resolve(client.from('transactions').delete().in('id', Array.from(localDeletedTxIds))));
     }
 
     if (deleteTasks.length > 0) {

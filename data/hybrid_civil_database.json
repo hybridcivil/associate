@@ -5,6 +5,24 @@
   },
   "associates": [
     {
+      "id": "assoc-3",
+      "name": "Engr. Rakibul Hasan",
+      "phone": "01933000333",
+      "password": "assoc123",
+      "email": "rakibul@hybridcivil.net",
+      "address": "Agrabad, Chattogram",
+      "status": "active"
+    },
+    {
+      "id": "assoc-mujji1fbp8pzj8",
+      "name": "Arefin",
+      "phone": "+880 1911-605771",
+      "password": "1",
+      "email": "arefin@gmail.com",
+      "address": "Nirala, Shariatpur",
+      "status": "active"
+    },
+    {
       "id": "assoc-1",
       "name": "Engr. Tanvir Ahmed",
       "phone": "01711000111",
@@ -23,39 +41,12 @@
       "status": "active"
     },
     {
-      "id": "assoc-3",
-      "name": "Engr. Rakibul Hasan",
-      "phone": "01933000333",
-      "password": "assoc123",
-      "email": "rakibul@hybridcivil.net",
-      "address": "Agrabad, Chattogram",
-      "status": "active"
-    },
-    {
       "id": "assoc-4",
       "name": "Ar. Farhana Kabir",
       "phone": "01644000444",
       "password": "assoc123",
       "email": "farhana.design@hybridcivil.net",
       "address": "Banani, Dhaka",
-      "status": "active"
-    },
-    {
-      "id": "assoc-mud4mz7mj22up8",
-      "name": "xyz",
-      "phone": "2207",
-      "password": "2208",
-      "email": "ffg@gg.com",
-      "address": "Dhaka, Bangladesh",
-      "status": "active"
-    },
-    {
-      "id": "assoc-muefynvqwvwlkk",
-      "name": "adf",
-      "phone": "1234",
-      "password": "1234",
-      "email": "vhhh@g.com",
-      "address": "gh",
       "status": "active"
     },
     {
@@ -69,16 +60,6 @@
     }
   ],
   "clients": [
-    {
-      "id": "client-1",
-      "name": "Al-Madina Real Estate Ltd.",
-      "phone": "01755123456",
-      "project": "G+9 Commercial & Residential Complex",
-      "price": 280000,
-      "advance": 140000,
-      "associateId": "assoc-1",
-      "date": "2026-03-10"
-    },
     {
       "id": "client-2",
       "name": "Beximco Industrial Park",
@@ -100,6 +81,16 @@
       "date": "2026-03-18"
     },
     {
+      "id": "client-1",
+      "name": "Al-Madina Real Estate Ltd.",
+      "phone": "01755123456",
+      "project": "G+9 Commercial & Residential Complex",
+      "price": 280000,
+      "advance": 140000,
+      "associateId": "assoc-1",
+      "date": "2026-03-10"
+    },
+    {
       "id": "client-muczs9yo18tbrw",
       "name": "abc",
       "phone": "2888",
@@ -111,6 +102,27 @@
     }
   ],
   "transactions": [
+    {
+      "id": "tx-5",
+      "date": "2026-03-16",
+      "clientId": "client-2",
+      "associateId": "assoc-2",
+      "shareType": "Selected associate 5%",
+      "amount": 7500,
+      "profit": 150000,
+      "kind": "referral"
+    },
+    {
+      "id": "tx-6",
+      "date": "2026-03-16",
+      "clientId": "client-2",
+      "associateId": "assoc-1",
+      "shareType": "Equal distribution 5% pool",
+      "amount": 2500,
+      "profit": 150000,
+      "kind": "equal",
+      "distributionId": "tx-5"
+    },
     {
       "id": "tx-7",
       "date": "2026-03-16",
@@ -175,27 +187,6 @@
       "profit": 90000,
       "kind": "equal",
       "distributionId": "tx-1"
-    },
-    {
-      "id": "tx-5",
-      "date": "2026-03-16",
-      "clientId": "client-2",
-      "associateId": "assoc-2",
-      "shareType": "Selected associate 5%",
-      "amount": 7500,
-      "profit": 150000,
-      "kind": "referral"
-    },
-    {
-      "id": "tx-6",
-      "date": "2026-03-16",
-      "clientId": "client-2",
-      "associateId": "assoc-1",
-      "shareType": "Equal distribution 5% pool",
-      "amount": 2500,
-      "profit": 150000,
-      "kind": "equal",
-      "distributionId": "tx-5"
     }
   ],
   "payments": [

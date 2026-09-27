@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { AppDatabase, Session, Payment } from '../types';
+import { AppDatabase, Session, Payment, Transaction } from '../types';
 import {
   generateId,
   saveDatabase,
   calculateAssociateTotals,
   formatMoney,
+  recordDeletedTransactionIds,
 } from '../utils/storage';
+import { deleteTransactionsFromSupabase } from '../utils/supabase';
 import {
   Receipt,
   Download,
@@ -15,13 +17,17 @@ import {
   UserCheck,
   CheckCircle,
   AlertCircle,
+  AlertTriangle,
   FileSpreadsheet,
+  Trash2,
+  RefreshCw,
+  Layers,
 } from 'lucide-react';
 
 interface TransactionsViewProps {
   db: AppDatabase;
   session: Session;
-  onUpdateDb: (updated: AppDatabase) => void;
+  onUpdateDb: (updated: AppDatabase, commitMsg?: string) => Promise<any> | void;
 }
 
 export const TransactionsView: React.FC<TransactionsViewProps> = ({
@@ -35,6 +41,11 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   const [filterAssociate, setFilterAssociate] = useState<string>('');
   const [filterFrom, setFilterFrom] = useState<string>('');
   const [filterTo, setFilterTo] = useState<string>('');
+
+  // Delete transaction state (Admin only)
+  const [txToDelete, setTxToDelete] = useState<Transaction | null>(null);
+  const [deleteScope, setDeleteScope] = useState<'single' | 'distribution'>('single');
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
   // Payment form states (Admin only)
   const [payAssociateId, setPayAssociateId] = useState<string>('');
@@ -59,6 +70,86 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
 
   const getAssociateName = (aid: string) => {
     return db.associates.find((a) => a.id === aid)?.name || 'Associate';
+  };
+
+  const handleDeleteTransactionClick = (tx: Transaction) => {
+    setTxToDelete(tx);
+    setDeleteScope('single');
+  };
+
+  const confirmDeleteTransaction = async () => {
+    if (!txToDelete) return;
+    setIsDeleting(true);
+
+    try {
+      const linkedDistributionTxs = txToDelete.distributionId
+        ? db.transactions.filter((t) => t.distributionId === txToDelete.distributionId)
+        : [];
+      const hasMultipleInDist = linkedDistributionTxs.length > 1;
+      const isDeleteAll = deleteScope === 'distribution' && hasMultipleInDist;
+
+      const targetIds = isDeleteAll
+        ? linkedDistributionTxs.map((t) => t.id)
+        : [txToDelete.id];
+
+      // 1. Record in persistent deleted set
+      recordDeletedTransactionIds(targetIds);
+
+      // 2. Filter from memory transactions
+      const delSet = new Set(targetIds);
+      const updatedTransactions = db.transactions.filter((t) => !delSet.has(t.id));
+
+      // 3. Clean up linked payment allocations if any
+      const updatedPayments = db.payments.map((p) => {
+        if (!p.parts) return p;
+        let changed = false;
+        const newParts = { ...p.parts };
+        for (const tid of targetIds) {
+          if (newParts[tid] !== undefined) {
+            delete newParts[tid];
+            changed = true;
+          }
+        }
+        return changed ? { ...p, parts: newParts } : p;
+      });
+
+      const updatedDb: AppDatabase = {
+        ...db,
+        transactions: updatedTransactions,
+        payments: updatedPayments,
+      };
+
+      const commitMsg = targetIds.length > 1
+        ? `Delete transactions ${targetIds.join(',')}`
+        : `Delete transaction ${targetIds[0]}`;
+
+      // 4. Direct delete call to server & Supabase first
+      try {
+        await fetch('/api/transactions/delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: targetIds }),
+        });
+      } catch (apiErr) {
+        console.warn('API delete transactions note:', apiErr);
+      }
+      deleteTransactionsFromSupabase(targetIds).catch(() => {});
+
+      // 5. Update memory, local storage, and broadcast push once
+      await onUpdateDb(updatedDb, commitMsg);
+
+      showNotice(
+        targetIds.length > 1
+          ? `Entire distribution (${targetIds.length} entries) deleted from ledger.`
+          : `Ledger entry (${formatMoney(txToDelete.amount)}) deleted successfully.`,
+        'success'
+      );
+      setTxToDelete(null);
+    } catch (err: any) {
+      showNotice(`Failed to delete ledger entry: ${err.message || 'Error'}`, 'error');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   // Quick pay handler
@@ -356,7 +447,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                 <th className="px-3.5 py-2.5">Earned</th>
                 <th className="px-3.5 py-2.5">Disbursed</th>
                 <th className="px-3.5 py-2.5">Balance Due</th>
-                {isAdmin && <th className="px-3.5 py-2.5 text-right">Settlement</th>}
+                {isAdmin && <th className="px-3.5 py-2.5 text-right">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -427,18 +518,30 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
                         </td>
                         {isAdmin && (
                           <td className="px-3.5 py-2.5 text-right whitespace-nowrap">
-                            {!isSettled ? (
+                            <div className="flex items-center justify-end gap-1.5">
+                              {!isSettled ? (
+                                <button
+                                  id={`pay-due-${tx.id}`}
+                                  onClick={() => handleQuickPay(tx.associateId, due)}
+                                  className="px-2 py-1 rounded bg-orange-100 hover:bg-orange-200 text-orange-800 text-[10px] font-bold transition-colors cursor-pointer"
+                                  title="Disburse payment for this due amount"
+                                >
+                                  Pay Due
+                                </button>
+                              ) : (
+                                <span className="text-[10px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                                  Settled
+                                </span>
+                              )}
                               <button
-                                onClick={() => handleQuickPay(tx.associateId, due)}
-                                className="px-2 py-1 rounded bg-orange-100 hover:bg-orange-200 text-orange-800 text-[10px] font-bold transition-colors cursor-pointer"
+                                id={`delete-tx-${tx.id}`}
+                                onClick={() => handleDeleteTransactionClick(tx)}
+                                className="p-1.5 rounded-md text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition-colors cursor-pointer"
+                                title="Delete Ledger Entry"
                               >
-                                Pay Due
+                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
-                            ) : (
-                              <span className="text-[10px] text-slate-400">
-                                Completed
-                              </span>
-                            )}
+                            </div>
                           </td>
                         )}
                       </tr>
@@ -548,6 +651,149 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
               <span>Record & Settle Due Amount</span>
             </button>
           </form>
+        </div>
+      )}
+
+      {/* Delete Ledger Entry Confirmation Modal */}
+      {txToDelete && (
+        <div className="fixed inset-0 z-50 bg-[#0d1f33]/70 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm sm:max-w-md shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-5 space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center flex-shrink-0 text-rose-600">
+                  <AlertTriangle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">
+                    Delete Ledger Entry
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Ledger accounting and record reversal
+                  </p>
+                </div>
+              </div>
+
+              {/* Transaction details card */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs">
+                <div className="flex justify-between items-center pb-2 border-b border-slate-200/80">
+                  <span className="text-slate-500 font-medium">Beneficiary</span>
+                  <span className="font-bold text-slate-800">
+                    {getAssociateName(txToDelete.associateId)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-medium">Project / Client</span>
+                  <span className="font-semibold text-slate-700">
+                    {getClientName(txToDelete.clientId)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-500 font-medium">Date & Share</span>
+                  <span className="text-slate-700">
+                    {txToDelete.date} · <span className="font-semibold text-orange-600">{txToDelete.shareType}</span>
+                  </span>
+                </div>
+                <div className="flex justify-between items-center pt-2 border-t border-slate-200/80">
+                  <span className="text-slate-500 font-medium">Earned Amount</span>
+                  <span className="text-sm font-bold text-slate-900">
+                    {formatMoney(txToDelete.amount)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Multiple entries in distribution option */}
+              {(() => {
+                const linkedTxs = txToDelete.distributionId
+                  ? db.transactions.filter((t) => t.distributionId === txToDelete.distributionId)
+                  : [];
+                if (linkedTxs.length <= 1) return null;
+
+                const distTotal = linkedTxs.reduce((sum, t) => sum + (t.amount || 0), 0);
+
+                return (
+                  <div className="space-y-2 p-3 bg-amber-50/70 border border-amber-200/70 rounded-xl text-xs">
+                    <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                      <Layers className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Part of 90/5/5 Distribution Batch</span>
+                    </div>
+                    <p className="text-[11px] text-amber-800 leading-relaxed">
+                      This entry was generated alongside {linkedTxs.length - 1} other entries for the same client project profit event (Total: {formatMoney(distTotal)}).
+                    </p>
+                    <div className="space-y-1.5 pt-1">
+                      <label className="flex items-center gap-2 cursor-pointer p-1.5 rounded-lg hover:bg-amber-100/50">
+                        <input
+                          type="radio"
+                          name="deleteScope"
+                          checked={deleteScope === 'single'}
+                          onChange={() => setDeleteScope('single')}
+                          className="text-[#f28c28] focus:ring-orange-500"
+                        />
+                        <span className="text-xs text-slate-800">
+                          Delete only this entry (<span className="font-bold">{formatMoney(txToDelete.amount)}</span>)
+                        </span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer p-1.5 rounded-lg hover:bg-amber-100/50">
+                        <input
+                          type="radio"
+                          name="deleteScope"
+                          checked={deleteScope === 'distribution'}
+                          onChange={() => setDeleteScope('distribution')}
+                          className="text-[#f28c28] focus:ring-orange-500"
+                        />
+                        <span className="text-xs font-semibold text-slate-900">
+                          Delete entire distribution batch ({linkedTxs.length} entries · {formatMoney(distTotal)})
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Payment warning */}
+              {(() => {
+                const paid = db.payments.reduce(
+                  (sum, p) => sum + (p.parts?.[txToDelete.id] || 0),
+                  0
+                );
+                if (paid <= 0) return null;
+                return (
+                  <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-[11px] text-rose-800">
+                    <span className="font-bold">Payment notice:</span> {formatMoney(paid)} has already been disbursed against this entry. Deleting will unlink this payment allocation.
+                  </div>
+                );
+              })()}
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={() => setTxToDelete(null)}
+                  className="px-3.5 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  id="confirmDeleteTxBtn"
+                  disabled={isDeleting}
+                  onClick={confirmDeleteTransaction}
+                  className="px-4 py-2 rounded-lg text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 transition-colors shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {isDeleting ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Deleting...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>{deleteScope === 'distribution' ? 'Delete Distribution Batch' : 'Yes, Delete Entry'}</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

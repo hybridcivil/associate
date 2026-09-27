@@ -168,13 +168,44 @@ ${clients
     } catch {}
   };
 
+  const DELETED_TRANSACTIONS_FILE = path.join(process.cwd(), "data", "deleted_transactions.json");
+  const getServerDeletedTxIds = (): Set<string> => {
+    try {
+      if (fs.existsSync(DELETED_TRANSACTIONS_FILE)) {
+        const raw = fs.readFileSync(DELETED_TRANSACTIONS_FILE, "utf-8");
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) return new Set(arr);
+      }
+    } catch {}
+    return new Set();
+  };
+
+  const recordServerDeletedTxId = (id: string) => {
+    try {
+      const set = getServerDeletedTxIds();
+      set.add(id);
+      fs.mkdirSync(path.dirname(DELETED_TRANSACTIONS_FILE), { recursive: true });
+      fs.writeFileSync(DELETED_TRANSACTIONS_FILE, JSON.stringify(Array.from(set).slice(-300)), "utf-8");
+    } catch {}
+  };
+
+  const recordServerDeletedTxIds = (ids: string[]) => {
+    try {
+      const set = getServerDeletedTxIds();
+      for (const id of ids) set.add(id);
+      fs.mkdirSync(path.dirname(DELETED_TRANSACTIONS_FILE), { recursive: true });
+      fs.writeFileSync(DELETED_TRANSACTIONS_FILE, JSON.stringify(Array.from(set).slice(-300)), "utf-8");
+    } catch {}
+  };
+
   // Helper to merge databases non-destructively so NO messages or records are ever lost
   const mergeDatabases = (
     localDb: any,
     incomingDb: any,
     deletedMsgId?: string,
     deletedAssocId?: string,
-    deletedClientId?: string
+    deletedClientId?: string,
+    deletedTxId?: string | string[]
   ): any => {
     if (!localDb) return incomingDb || {};
     if (!incomingDb) return localDb || {};
@@ -228,6 +259,20 @@ ${clients
     }
     for (const t of (incomingDb.transactions || [])) {
       if (t && t.id) txMap.set(t.id, t);
+    }
+
+    if (deletedTxId) {
+      if (Array.isArray(deletedTxId)) {
+        recordServerDeletedTxIds(deletedTxId);
+        for (const id of deletedTxId) txMap.delete(id);
+      } else {
+        recordServerDeletedTxId(deletedTxId);
+        txMap.delete(deletedTxId);
+      }
+    }
+    const deletedTxs = getServerDeletedTxIds();
+    for (const delId of deletedTxs) {
+      txMap.delete(delId);
     }
 
     // 4. Merge payments (union by id)
@@ -424,17 +469,20 @@ ${clients
             date: c.date,
           }));
 
-        const transactions = (txRes.data || []).map((t: any) => ({
-          id: t.id,
-          date: t.date,
-          clientId: t.client_id,
-          associateId: t.associate_id,
-          shareType: t.share_type,
-          amount: Number(t.amount || 0),
-          profit: Number(t.profit || 0),
-          kind: t.kind,
-          distributionId: t.distribution_id || undefined,
-        }));
+        const deletedTxIds = getServerDeletedTxIds();
+        const transactions = (txRes.data || [])
+          .filter((t: any) => t && !deletedTxIds.has(t.id))
+          .map((t: any) => ({
+            id: t.id,
+            date: t.date,
+            clientId: t.client_id,
+            associateId: t.associate_id,
+            shareType: t.share_type,
+            amount: Number(t.amount || 0),
+            profit: Number(t.profit || 0),
+            kind: t.kind,
+            distributionId: t.distribution_id || undefined,
+          }));
 
         const payments = (payRes.data || []).map((p: any) => ({
           id: p.id,
@@ -494,7 +542,8 @@ ${clients
   const saveSupabaseServerDatabase = async (
     validatedDb: any,
     deletedAssocId?: string,
-    deletedClientId?: string
+    deletedClientId?: string,
+    deletedTxIds?: string[]
   ): Promise<boolean> => {
     const client = getServerSupabaseClient();
     if (!client) return false;
@@ -513,6 +562,14 @@ ${clients
       const deletedClients = getServerDeletedClientIds();
       for (const delId of deletedClients) {
         await client.from("clients").delete().eq("id", delId);
+      }
+
+      if (deletedTxIds && deletedTxIds.length > 0) {
+        await client.from("transactions").delete().in("id", deletedTxIds);
+      }
+      const deletedTxs = getServerDeletedTxIds();
+      for (const delId of deletedTxs) {
+        await client.from("transactions").delete().eq("id", delId);
       }
 
       const storePromise = client.from("app_database").upsert(
@@ -693,6 +750,18 @@ ${clients
         try {
           const fileContent = await fs.promises.readFile(dbFilePath, "utf-8");
           localDb = JSON.parse(fileContent);
+          const delAssocs = getServerDeletedAssocIds();
+          if (delAssocs.size > 0 && Array.isArray(localDb.associates)) {
+            localDb.associates = localDb.associates.filter((a: any) => a && !delAssocs.has(a.id));
+          }
+          const delClients = getServerDeletedClientIds();
+          if (delClients.size > 0 && Array.isArray(localDb.clients)) {
+            localDb.clients = localDb.clients.filter((c: any) => c && !delClients.has(c.id));
+          }
+          const delTxs = getServerDeletedTxIds();
+          if (delTxs.size > 0 && Array.isArray(localDb.transactions)) {
+            localDb.transactions = localDb.transactions.filter((t: any) => t && !delTxs.has(t.id));
+          }
         } catch (e) {}
       }
 
@@ -799,7 +868,7 @@ ${clients
         } catch (e) {}
       }
 
-      // Check if this save is an explicit message, associate, or client deletion
+      // Check if this save is an explicit message, associate, client, or transaction deletion
       const deleteMatch = typeof message === "string" && message.match(/Delete message ([a-zA-Z0-9_-]+)/);
       const deletedMsgId = deleteMatch ? deleteMatch[1] : req.body.deletedMsgId;
 
@@ -809,8 +878,17 @@ ${clients
       const deleteClientMatch = typeof message === "string" && message.match(/Delete client ([a-zA-Z0-9_-]+)/);
       const deletedClientId = deleteClientMatch ? deleteClientMatch[1] : req.body.deletedClientId;
 
+      const deleteTxMatch = typeof message === "string" && message.match(/Delete transaction ([a-zA-Z0-9_-]+)/);
+      const singleTxId = deleteTxMatch ? deleteTxMatch[1] : undefined;
+
+      const deleteTxsMatch = typeof message === "string" && message.match(/Delete transactions ([a-zA-Z0-9_,-]+)/);
+      const multiTxIds = deleteTxsMatch ? deleteTxsMatch[1].split(",") : undefined;
+
+      const deletedTxIds = multiTxIds || (singleTxId ? [singleTxId] : req.body.deletedTxIds);
+
       if (deletedAssocId) recordServerDeletedAssocId(deletedAssocId);
       if (deletedClientId) recordServerDeletedClientId(deletedClientId);
+      if (deletedTxIds) recordServerDeletedTxIds(Array.isArray(deletedTxIds) ? deletedTxIds : [deletedTxIds]);
 
       // Step 1: Read latest from Supabase if configured
       let remoteDb: any = null;
@@ -825,9 +903,9 @@ ${clients
 
       // Step 2: Merge the incoming database non-destructively
       const baseDb = remoteDb || currentLocalDb;
-      let mergedDb = mergeDatabases(baseDb, data, deletedMsgId, deletedAssocId, deletedClientId);
+      let mergedDb = mergeDatabases(baseDb, data, deletedMsgId, deletedAssocId, deletedClientId, deletedTxIds);
       if (currentLocalDb && baseDb !== currentLocalDb) {
-        mergedDb = mergeDatabases(mergedDb, currentLocalDb, deletedMsgId, deletedAssocId, deletedClientId);
+        mergedDb = mergeDatabases(mergedDb, currentLocalDb, deletedMsgId, deletedAssocId, deletedClientId, deletedTxIds);
       }
 
       // Sanitize and validate merged database structure
@@ -839,12 +917,17 @@ ${clients
       if (deletedClientId) {
         validatedClients = validatedClients.filter((c: any) => c && c.id !== deletedClientId);
       }
+      let validatedTransactions = Array.isArray(mergedDb.transactions) ? mergedDb.transactions : [];
+      if (deletedTxIds) {
+        const delSet = new Set(Array.isArray(deletedTxIds) ? deletedTxIds : [deletedTxIds]);
+        validatedTransactions = validatedTransactions.filter((t: any) => t && !delSet.has(t.id));
+      }
 
       const validatedDb = {
         admin: mergedDb.admin || { username: "admin", password: "admin123" },
         associates: validatedAssociates,
         clients: validatedClients,
-        transactions: Array.isArray(mergedDb.transactions) ? mergedDb.transactions : [],
+        transactions: validatedTransactions,
         payments: Array.isArray(mergedDb.payments) ? mergedDb.payments : [],
         messages: Array.isArray(mergedDb.messages) ? mergedDb.messages : [],
       };
@@ -863,7 +946,12 @@ ${clients
       let supabaseSaved = false;
       if (serverSbCfg.url && serverSbCfg.anonKey) {
         try {
-          supabaseSaved = await saveSupabaseServerDatabase(validatedDb, deletedAssocId, deletedClientId);
+          supabaseSaved = await saveSupabaseServerDatabase(
+            validatedDb,
+            deletedAssocId,
+            deletedClientId,
+            deletedTxIds ? (Array.isArray(deletedTxIds) ? deletedTxIds : [deletedTxIds]) : undefined
+          );
         } catch (sbSaveErr) {
           console.warn("Supabase save attempt failed on server:", sbSaveErr);
         }
@@ -1019,6 +1107,95 @@ ${clients
       res.json({ success: true, message: `Associate ${id} deleted.` });
     } catch (err: any) {
       res.status(500).json({ error: err.message || "Failed to delete associate." });
+    }
+  });
+
+  // DELETE /transactions/:id
+  router.delete("/transactions/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      if (!id) return res.status(400).json({ error: "Transaction ID is required." });
+
+      recordServerDeletedTxId(id);
+
+      // 1. Delete from Supabase table
+      const client = getServerSupabaseClient();
+      if (client) {
+        try {
+          await client.from("transactions").delete().eq("id", id);
+        } catch (e) {
+          console.warn("Could not delete transaction from Supabase:", e);
+        }
+      }
+
+      // 2. Delete from local JSON database & cleanup payments
+      const dbFilePath = path.join(process.cwd(), "data", "hybrid_civil_database.json");
+      if (fs.existsSync(dbFilePath)) {
+        try {
+          const fileContent = await fs.promises.readFile(dbFilePath, "utf-8");
+          const currentLocalDb = JSON.parse(fileContent);
+          if (Array.isArray(currentLocalDb.transactions)) {
+            currentLocalDb.transactions = currentLocalDb.transactions.filter((t: any) => t && t.id !== id);
+          }
+          if (Array.isArray(currentLocalDb.payments)) {
+            for (const p of currentLocalDb.payments) {
+              if (p && p.parts && p.parts[id]) {
+                delete p.parts[id];
+              }
+            }
+          }
+          await fs.promises.writeFile(dbFilePath, JSON.stringify(currentLocalDb, null, 2), "utf-8");
+        } catch (e) {}
+      }
+
+      res.json({ success: true, message: `Transaction ${id} deleted.` });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to delete transaction." });
+    }
+  });
+
+  router.post("/transactions/delete", async (req, res) => {
+    try {
+      const { ids, id } = req.body;
+      const targetIds: string[] = Array.isArray(ids) ? ids : (id ? [id] : []);
+      if (targetIds.length === 0) return res.status(400).json({ error: "Transaction ID(s) required." });
+
+      recordServerDeletedTxIds(targetIds);
+
+      const client = getServerSupabaseClient();
+      if (client) {
+        try {
+          await client.from("transactions").delete().in("id", targetIds);
+        } catch (e) {
+          console.warn("Could not delete transactions from Supabase:", e);
+        }
+      }
+
+      const dbFilePath = path.join(process.cwd(), "data", "hybrid_civil_database.json");
+      if (fs.existsSync(dbFilePath)) {
+        try {
+          const fileContent = await fs.promises.readFile(dbFilePath, "utf-8");
+          const currentLocalDb = JSON.parse(fileContent);
+          const delSet = new Set(targetIds);
+          if (Array.isArray(currentLocalDb.transactions)) {
+            currentLocalDb.transactions = currentLocalDb.transactions.filter((t: any) => t && !delSet.has(t.id));
+          }
+          if (Array.isArray(currentLocalDb.payments)) {
+            for (const p of currentLocalDb.payments) {
+              if (p && p.parts) {
+                for (const tid of targetIds) {
+                  delete p.parts[tid];
+                }
+              }
+            }
+          }
+          await fs.promises.writeFile(dbFilePath, JSON.stringify(currentLocalDb, null, 2), "utf-8");
+        } catch (e) {}
+      }
+
+      res.json({ success: true, message: `Transactions deleted.`, count: targetIds.length });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message || "Failed to delete transactions." });
     }
   });
 
