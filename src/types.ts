@@ -95,6 +95,52 @@ export interface BalanceTransfer {
   receiverTxId?: string;
 }
 
+export interface Director {
+  id: string;
+  name: string;
+  designation: string;
+  salary: number; // Base salary in BDT, used for proportional 90% share calculation
+  phone: string;
+  email?: string;
+  status: 'active' | 'inactive';
+  associateId?: string; // Optional link to an Associate account
+  nid?: string;
+  joiningDate: string;
+  bankInfo?: string;
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface DirectorShareItem {
+  directorId: string;
+  directorName: string;
+  designation: string;
+  salary: number;
+  salaryPercentage: number; // Proportional percentage of total active director salaries
+  shareAmount: number; // Proportional 90% share of total profit pool
+  status: 'pending' | 'paid';
+  paidDate?: string;
+  paymentMethod?: string;
+}
+
+export interface DirectorDistribution {
+  id: string;
+  date: string;
+  title: string;
+  totalProfitPool: number; // Total company profit or surplus considered
+  directorSharePercentage: number; // Always 90%
+  directorPoolAmount: number; // 90% of total profit pool
+  companyRetainedAmount: number; // 10% retained for operational reserves
+  totalDirectorsSalary: number; // Sum of salaries of active directors at calculation time
+  activeDirectorsCount: number;
+  distributionItems: DirectorShareItem[];
+  notes?: string;
+  recordedBy: string;
+  status: 'recorded' | 'disbursed';
+  createdAt: string;
+}
+
 export interface AppDatabase {
   admin: { username: string; password: string };
   associates: Associate[];
@@ -104,6 +150,8 @@ export interface AppDatabase {
   messages: Message[];
   contacts?: Contact[];
   balanceTransfers?: BalanceTransfer[];
+  directors?: Director[];
+  directorDistributions?: DirectorDistribution[];
 }
 
 export interface GitHubConfig {
@@ -160,6 +208,7 @@ export interface SaveStatus {
 export type TabKey =
   | 'dashboard'
   | 'associates'
+  | 'directors'
   | 'clients'
   | 'contacts'
   | 'profit'

@@ -41,6 +41,7 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   const [filterAssociate, setFilterAssociate] = useState<string>('');
   const [filterFrom, setFilterFrom] = useState<string>('');
   const [filterTo, setFilterTo] = useState<string>('');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'projects' | 'p2p_transfers' | 'director_dividends'>('all');
 
   // Delete transaction state (Admin only)
   const [txToDelete, setTxToDelete] = useState<Transaction | null>(null);
@@ -65,6 +66,8 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   };
 
   const getClientName = (cid: string) => {
+    if (cid === 'p2p-transfer') return 'Peer-to-Peer Transfer';
+    if (cid === 'director-dividend') return 'Director 90% Share Dividend';
     return db.clients.find((c) => c.id === cid)?.name || 'Direct Project';
   };
 
@@ -238,11 +241,21 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
   // Filtered transaction list
   const filteredTransactions = db.transactions.filter((tx) => {
     if (!isAdmin) {
-      return tx.associateId === session.id;
+      if (tx.associateId !== session.id) return false;
     }
     if (filterAssociate && tx.associateId !== filterAssociate) return false;
     if (filterFrom && tx.date < filterFrom) return false;
     if (filterTo && tx.date > filterTo) return false;
+
+    // Type filter
+    if (typeFilter === 'projects') {
+      if (tx.clientId === 'p2p-transfer' || tx.clientId === 'director-dividend') return false;
+    } else if (typeFilter === 'p2p_transfers') {
+      if (tx.clientId !== 'p2p-transfer') return false;
+    } else if (typeFilter === 'director_dividends') {
+      if (tx.clientId !== 'director-dividend') return false;
+    }
+
     return true;
   });
 
@@ -334,6 +347,28 @@ export const TransactionsView: React.FC<TransactionsViewProps> = ({
             </button>
           )}
         </div>
+      </div>
+
+      {/* Transaction Category Filter Tabs */}
+      <div className="flex items-center gap-1.5 flex-wrap bg-white p-2 rounded-xl border border-slate-200 shadow-xs">
+        {[
+          { id: 'all', label: 'All Ledger Entries' },
+          { id: 'projects', label: 'Project Commissions' },
+          { id: 'p2p_transfers', label: 'Peer-to-Peer Transfers' },
+          { id: 'director_dividends', label: 'Director 90% Shares' },
+        ].map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTypeFilter(t.id as any)}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+              typeFilter === t.id
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
       {notification && (

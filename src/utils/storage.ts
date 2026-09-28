@@ -40,6 +40,8 @@ export const DELETED_ASSOCS_KEY = 'hybridCivilDeletedAssocs_v1';
 export const DELETED_CLIENTS_KEY = 'hybridCivilDeletedClients_v1';
 export const DELETED_TXS_KEY = 'hybridCivilDeletedTxs_v1';
 export const DELETED_CONTACTS_KEY = 'hybridCivilDeletedContacts_v1';
+export const DELETED_DIRECTORS_KEY = 'hybridCivilDeletedDirectors_v1';
+export const DELETED_DISTRIBUTIONS_KEY = 'hybridCivilDeletedDistributions_v1';
 
 export type { AppDatabase, SaveStatus, SupabaseConfig };
 
@@ -149,6 +151,58 @@ export function recordDeletedContactId(contactId: string) {
     ids.add(contactId);
     const arr = Array.from(ids).slice(-300);
     localStorage.setItem(DELETED_CONTACTS_KEY, JSON.stringify(arr));
+  } catch (e) {}
+}
+
+export function getDeletedDirectorIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(DELETED_DIRECTORS_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return new Set(arr);
+    }
+  } catch (e) {}
+  return new Set();
+}
+
+export function recordDeletedDirectorId(directorId: string) {
+  try {
+    const ids = getDeletedDirectorIds();
+    ids.add(directorId);
+    const arr = Array.from(ids).slice(-300);
+    localStorage.setItem(DELETED_DIRECTORS_KEY, JSON.stringify(arr));
+  } catch (e) {}
+}
+
+export function getDeletedDistributionIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(DELETED_DISTRIBUTIONS_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return new Set(arr);
+    }
+  } catch (e) {}
+  return new Set();
+}
+
+export function recordDeletedDistributionId(distId: string) {
+  try {
+    const ids = getDeletedDistributionIds();
+    ids.add(distId);
+    const arr = Array.from(ids).slice(-300);
+    localStorage.setItem(DELETED_DISTRIBUTIONS_KEY, JSON.stringify(arr));
+  } catch (e) {}
+}
+
+export function clearAllLocalDeletedTracking() {
+  try {
+    localStorage.removeItem(DELETED_MSGS_KEY);
+    localStorage.removeItem(DELETED_ASSOCS_KEY);
+    localStorage.removeItem(DELETED_CLIENTS_KEY);
+    localStorage.removeItem(DELETED_TXS_KEY);
+    localStorage.removeItem(DELETED_CONTACTS_KEY);
+    localStorage.removeItem(DELETED_DIRECTORS_KEY);
+    localStorage.removeItem(DELETED_DISTRIBUTIONS_KEY);
   } catch (e) {}
 }
 
@@ -534,6 +588,104 @@ const INITIAL_DATA: AppDatabase = {
       status: 'completed',
     },
   ],
+  directors: [
+    {
+      id: 'dir-1',
+      name: 'Engr. Md. Rafiqul Alam',
+      designation: 'Managing Director & CEO',
+      salary: 90000,
+      phone: '01711223344',
+      email: 'rafiqul.alam@hybridcivil.net',
+      status: 'active',
+      joiningDate: '2024-01-01',
+      nid: '19842691234567890',
+      bankInfo: 'Dutch-Bangla Bank Ltd, A/C: 115.120.44558',
+      notes: 'Oversees company governance, major public tenders and structural engineering approvals.',
+      createdAt: '2024-01-01T09:00:00Z',
+    },
+    {
+      id: 'dir-2',
+      name: 'Engr. Tanvir Ahmed',
+      designation: 'Technical Director',
+      salary: 60000,
+      phone: '01711000111',
+      email: 'tanvir.civil@hybridcivil.net',
+      status: 'active',
+      associateId: 'assoc-1',
+      joiningDate: '2024-02-15',
+      nid: '19872691234567891',
+      bankInfo: 'BRAC Bank Ltd, A/C: 150120334455',
+      notes: 'Lead structural analysis, foundation integrity tests and site geotechnical reviews.',
+      createdAt: '2024-02-15T10:00:00Z',
+    },
+    {
+      id: 'dir-3',
+      name: 'Ar. Farhana Kabir',
+      designation: 'Director of Architecture & Urban Design',
+      salary: 50000,
+      phone: '01644000444',
+      email: 'farhana.design@hybridcivil.net',
+      status: 'active',
+      associateId: 'assoc-4',
+      joiningDate: '2024-03-01',
+      nid: '19902691234567892',
+      bankInfo: 'City Bank Ltd, A/C: 220199485721',
+      notes: 'Directs master plans, 3D modeling, RAJUK approvals and client aesthetic negotiations.',
+      createdAt: '2024-03-01T11:00:00Z',
+    },
+  ],
+  directorDistributions: [
+    {
+      id: 'dist-init-1',
+      date: '2026-03-01',
+      title: 'Q1 2026 Director 90% Net Profit Share Distribution',
+      totalProfitPool: 100000,
+      directorSharePercentage: 90,
+      directorPoolAmount: 90000,
+      companyRetainedAmount: 10000,
+      totalDirectorsSalary: 200000,
+      activeDirectorsCount: 3,
+      distributionItems: [
+        {
+          directorId: 'dir-1',
+          directorName: 'Engr. Md. Rafiqul Alam',
+          designation: 'Managing Director & CEO',
+          salary: 90000,
+          salaryPercentage: 45.0,
+          shareAmount: 40500,
+          status: 'paid',
+          paidDate: '2026-03-02',
+          paymentMethod: 'Bank Transfer (DBBL)',
+        },
+        {
+          directorId: 'dir-2',
+          directorName: 'Engr. Tanvir Ahmed',
+          designation: 'Technical Director',
+          salary: 60000,
+          salaryPercentage: 30.0,
+          shareAmount: 27000,
+          status: 'paid',
+          paidDate: '2026-03-02',
+          paymentMethod: 'Associate Ledger Credit',
+        },
+        {
+          directorId: 'dir-3',
+          directorName: 'Ar. Farhana Kabir',
+          designation: 'Director of Architecture & Urban Design',
+          salary: 50000,
+          salaryPercentage: 25.0,
+          shareAmount: 22500,
+          status: 'paid',
+          paidDate: '2026-03-02',
+          paymentMethod: 'Bank Transfer (City Bank)',
+        },
+      ],
+      notes: 'Initial Q1 profit distribution based on salary-wise 90% share formula (Total Active Salary: ৳200,000; Pool ৳100,000; 90% Share: ৳90,000).',
+      recordedBy: 'admin',
+      status: 'disbursed',
+      createdAt: '2026-03-01T17:00:00Z',
+    },
+  ],
 };
 
 /**
@@ -546,7 +698,9 @@ export function mergeDatabases(
   deletedAssocId?: string,
   deletedClientId?: string,
   deletedTxId?: string | string[],
-  deletedContactId?: string
+  deletedContactId?: string,
+  deletedDirectorId?: string,
+  deletedDistributionId?: string
 ): AppDatabase {
   if (!localDb) return remoteDb || INITIAL_DATA;
   if (!remoteDb) return localDb || INITIAL_DATA;
@@ -709,6 +863,48 @@ export function mergeDatabases(
     }
   }
 
+  // 8. Merge directors (union by id)
+  const directorMap = new Map<string, any>();
+  for (const d of (localDb.directors || [])) {
+    if (d && d.id) directorMap.set(d.id, d);
+  }
+  for (const d of (remoteDb.directors || [])) {
+    if (d && d.id) {
+      const existing = directorMap.get(d.id);
+      directorMap.set(d.id, existing ? { ...existing, ...d } : d);
+    }
+  }
+
+  if (deletedDirectorId) {
+    recordDeletedDirectorId(deletedDirectorId);
+    directorMap.delete(deletedDirectorId);
+  }
+  const deletedDirIds = getDeletedDirectorIds();
+  for (const delId of deletedDirIds) {
+    directorMap.delete(delId);
+  }
+
+  // 9. Merge director distributions (union by id)
+  const distMap = new Map<string, any>();
+  for (const dst of (localDb.directorDistributions || [])) {
+    if (dst && dst.id) distMap.set(dst.id, dst);
+  }
+  for (const dst of (remoteDb.directorDistributions || [])) {
+    if (dst && dst.id) {
+      const existing = distMap.get(dst.id);
+      distMap.set(dst.id, existing ? { ...existing, ...dst } : dst);
+    }
+  }
+
+  if (deletedDistributionId) {
+    recordDeletedDistributionId(deletedDistributionId);
+    distMap.delete(deletedDistributionId);
+  }
+  const deletedDistIds = getDeletedDistributionIds();
+  for (const delId of deletedDistIds) {
+    distMap.delete(delId);
+  }
+
   return {
     admin: remoteDb.admin || localDb.admin || INITIAL_DATA.admin,
     associates: Array.from(associateMap.values()),
@@ -718,6 +914,8 @@ export function mergeDatabases(
     messages: mergedMessages,
     contacts: Array.from(contactMap.values()),
     balanceTransfers: Array.from(transferMap.values()),
+    directors: Array.from(directorMap.values()),
+    directorDistributions: Array.from(distMap.values()),
   };
 }
 
@@ -736,7 +934,13 @@ export function loadDatabase(): AppDatabase {
         if (!Array.isArray(parsed.balanceTransfers)) {
           parsed.balanceTransfers = INITIAL_DATA.balanceTransfers || [];
         }
-        // Filter out any deleted associates/clients/messages/transactions/contacts
+        if (!Array.isArray(parsed.directors)) {
+          parsed.directors = INITIAL_DATA.directors || [];
+        }
+        if (!Array.isArray(parsed.directorDistributions)) {
+          parsed.directorDistributions = INITIAL_DATA.directorDistributions || [];
+        }
+        // Filter out any deleted associates/clients/messages/transactions/contacts/directors/distributions
         const deletedAssocIds = getDeletedAssociateIds();
         if (deletedAssocIds.size > 0) {
           parsed.associates = parsed.associates.filter((a: any) => a && !deletedAssocIds.has(a.id));
@@ -756,6 +960,14 @@ export function loadDatabase(): AppDatabase {
         const deletedContactIds = getDeletedContactIds();
         if (deletedContactIds.size > 0) {
           parsed.contacts = (parsed.contacts || []).filter((c: any) => c && !deletedContactIds.has(c.id));
+        }
+        const deletedDirIds = getDeletedDirectorIds();
+        if (deletedDirIds.size > 0) {
+          parsed.directors = (parsed.directors || []).filter((d: any) => d && !deletedDirIds.has(d.id));
+        }
+        const deletedDistIds = getDeletedDistributionIds();
+        if (deletedDistIds.size > 0) {
+          parsed.directorDistributions = (parsed.directorDistributions || []).filter((dst: any) => dst && !deletedDistIds.has(dst.id));
         }
         return parsed;
       }
@@ -856,12 +1068,20 @@ export async function fetchAuthoritativeDatabase(forcePull: boolean = false): Pr
         if (!Array.isArray(json.data.balanceTransfers)) {
           json.data.balanceTransfers = INITIAL_DATA.balanceTransfers || [];
         }
+        if (!Array.isArray(json.data.directors)) {
+          json.data.directors = INITIAL_DATA.directors || [];
+        }
+        if (!Array.isArray(json.data.directorDistributions)) {
+          json.data.directorDistributions = INITIAL_DATA.directorDistributions || [];
+        }
 
         const deletedAssocs = getDeletedAssociateIds();
         const deletedClients = getDeletedClientIds();
         const deletedTxs = getDeletedTransactionIds();
         const deletedMsgs = getDeletedMessageIds();
         const deletedContactIds = getDeletedContactIds();
+        const deletedDirIds = getDeletedDirectorIds();
+        const deletedDistIds = getDeletedDistributionIds();
 
         const authoritativeData: AppDatabase = {
           admin: json.data.admin || INITIAL_DATA.admin,
@@ -882,6 +1102,12 @@ export async function fetchAuthoritativeDatabase(forcePull: boolean = false): Pr
             (c: any) => c && !deletedContactIds.has(c.id)
           ),
           balanceTransfers: Array.isArray(json.data.balanceTransfers) ? json.data.balanceTransfers : [],
+          directors: (Array.isArray(json.data.directors) ? json.data.directors : []).filter(
+            (d: any) => d && !deletedDirIds.has(d.id)
+          ),
+          directorDistributions: (Array.isArray(json.data.directorDistributions) ? json.data.directorDistributions : []).filter(
+            (dst: any) => dst && !deletedDistIds.has(dst.id)
+          ),
         };
 
         try {
@@ -934,13 +1160,30 @@ export async function saveDatabase(
   const deleteTxsMatch = typeof commitMessage === 'string' && commitMessage.match(/Delete transactions ([a-zA-Z0-9_,-]+)/);
   const multiTxIds = deleteTxsMatch ? deleteTxsMatch[1].split(',') : undefined;
 
+  const deleteDirectorMatch = typeof commitMessage === 'string' && commitMessage.match(/Delete director ([a-zA-Z0-9_-]+)/);
+  const deletedDirectorId = deleteDirectorMatch ? deleteDirectorMatch[1] : undefined;
+
+  const deleteDistMatch = typeof commitMessage === 'string' && commitMessage.match(/Delete distribution ([a-zA-Z0-9_-]+)/);
+  const deletedDistributionId = deleteDistMatch ? deleteDistMatch[1] : undefined;
+
+  const isReset = Boolean(
+    typeof commitMessage === 'string' &&
+    (commitMessage.startsWith('RESET_DATABASE:') || commitMessage.includes('Reset database'))
+  );
+
   const deletedTxIds = multiTxIds || (singleTxId ? [singleTxId] : undefined);
 
-  if (deletedAssocId) recordDeletedAssociateId(deletedAssocId);
-  if (deletedClientId) recordDeletedClientId(deletedClientId);
-  if (deletedMsgId) recordDeletedMessageId(deletedMsgId);
-  if (deletedTxIds) recordDeletedTransactionIds(deletedTxIds);
-  if (deletedContactId) recordDeletedContactId(deletedContactId);
+  if (isReset) {
+    clearAllLocalDeletedTracking();
+  } else {
+    if (deletedAssocId) recordDeletedAssociateId(deletedAssocId);
+    if (deletedClientId) recordDeletedClientId(deletedClientId);
+    if (deletedMsgId) recordDeletedMessageId(deletedMsgId);
+    if (deletedTxIds) recordDeletedTransactionIds(deletedTxIds);
+    if (deletedContactId) recordDeletedContactId(deletedContactId);
+    if (deletedDirectorId) recordDeletedDirectorId(deletedDirectorId);
+    if (deletedDistributionId) recordDeletedDistributionId(deletedDistributionId);
+  }
 
   // 1. Instant local cache update so UI is immediately responsive
   try {
@@ -974,6 +1217,9 @@ export async function saveDatabase(
         deletedMsgId,
         deletedTxIds,
         deletedContactId,
+        deletedDirectorId,
+        deletedDistributionId,
+        isReset,
         owner: config?.owner || 'hybridcivil',
         repo: config?.repo || 'associate',
         branch: config?.branch || 'main',
@@ -990,7 +1236,12 @@ export async function saveDatabase(
 
       // If server returned merged data, update localStorage cache non-destructively
       let finalMergedData = data;
-      if (json.data && Array.isArray(json.data.messages)) {
+      if (isReset && json.data) {
+        finalMergedData = json.data;
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(finalMergedData));
+        } catch (e) {}
+      } else if (json.data && Array.isArray(json.data.messages)) {
         finalMergedData = mergeDatabases(
           data,
           json.data,
@@ -998,7 +1249,9 @@ export async function saveDatabase(
           deletedAssocId,
           deletedClientId,
           deletedTxIds,
-          deletedContactId
+          deletedContactId,
+          deletedDirectorId,
+          deletedDistributionId
         );
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(finalMergedData));
@@ -1043,6 +1296,82 @@ export async function saveDatabase(
       message: clientSbSaved ? 'Synced to Supabase' : 'Saved locally',
     };
   }
+}
+
+export type DatabaseResetMode =
+  | 'factory_default'
+  | 'clean_slate'
+  | 'clear_transfers_only'
+  | 'clear_transactions_only'
+  | 'clear_messages_only'
+  | 'clear_distributions_only';
+
+export async function resetDatabaseSystem(
+  mode: DatabaseResetMode,
+  currentDb: AppDatabase
+): Promise<SaveStatus & { data?: AppDatabase }> {
+  clearAllLocalDeletedTracking();
+
+  let targetDb: AppDatabase;
+  const adminCreds = currentDb.admin || { username: 'admin', password: 'admin123' };
+
+  switch (mode) {
+    case 'factory_default':
+      targetDb = {
+        ...INITIAL_DATA,
+        admin: adminCreds,
+      };
+      break;
+
+    case 'clean_slate':
+      targetDb = {
+        admin: adminCreds,
+        associates: currentDb.associates || INITIAL_DATA.associates,
+        directors: currentDb.directors || INITIAL_DATA.directors,
+        clients: [],
+        transactions: [],
+        payments: [],
+        messages: [],
+        contacts: currentDb.contacts || [],
+        balanceTransfers: [],
+        directorDistributions: [],
+      };
+      break;
+
+    case 'clear_transfers_only':
+      targetDb = {
+        ...currentDb,
+        balanceTransfers: [],
+      };
+      break;
+
+    case 'clear_transactions_only':
+      targetDb = {
+        ...currentDb,
+        transactions: [],
+        payments: [],
+      };
+      break;
+
+    case 'clear_messages_only':
+      targetDb = {
+        ...currentDb,
+        messages: [],
+      };
+      break;
+
+    case 'clear_distributions_only':
+      targetDb = {
+        ...currentDb,
+        directorDistributions: [],
+      };
+      break;
+
+    default:
+      targetDb = { ...INITIAL_DATA, admin: adminCreds };
+  }
+
+  return await saveDatabase(targetDb, `RESET_DATABASE: Mode ${mode}`);
 }
 
 export function loadSession(): Session | null {

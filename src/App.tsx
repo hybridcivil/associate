@@ -23,6 +23,8 @@ import { MyProfileView } from './components/MyProfileView';
 import { MessagesView } from './components/MessagesView';
 import { ContactsView } from './components/ContactsView';
 import { TransfersView } from './components/TransfersView';
+import { DirectorsView } from './components/DirectorsView';
+import { DatabaseResetModal } from './components/DatabaseResetModal';
 import { SupabaseDatabaseView } from './components/SupabaseDatabaseView';
 import { LoginModal } from './components/LoginModal';
 import { SyncSettingsModal } from './components/SyncSettingsModal';
@@ -34,6 +36,7 @@ export default function App() {
   const [syncAction, setSyncAction] = useState<'idle' | 'pulling' | 'pushing'>('idle');
   const [saveStatus, setSaveStatus] = useState<SaveStatus | null>(null);
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
 
   // Synchronized refs to avoid stale closures in intervals
   const dbRef = useRef<AppDatabase>(db);
@@ -185,6 +188,17 @@ export default function App() {
     const deleteContactMatch = typeof commitMsg === 'string' && commitMsg.match(/Delete contact ([a-zA-Z0-9_-]+)/);
     const deletedContactId = deleteContactMatch ? deleteContactMatch[1] : undefined;
 
+    const deleteDirectorMatch = typeof commitMsg === 'string' && commitMsg.match(/Delete director ([a-zA-Z0-9_-]+)/);
+    const deletedDirectorId = deleteDirectorMatch ? deleteDirectorMatch[1] : undefined;
+
+    const deleteDistMatch = typeof commitMsg === 'string' && commitMsg.match(/Delete distribution ([a-zA-Z0-9_-]+)/);
+    const deletedDistributionId = deleteDistMatch ? deleteDistMatch[1] : undefined;
+
+    const isReset = Boolean(
+      typeof commitMsg === 'string' &&
+      (commitMsg.startsWith('RESET_DATABASE:') || commitMsg.includes('Reset database'))
+    );
+
     const deleteTxMatch = typeof commitMsg === 'string' && commitMsg.match(/Delete transaction ([a-zA-Z0-9_-]+)/);
     const singleTxId = deleteTxMatch ? deleteTxMatch[1] : undefined;
 
@@ -193,15 +207,19 @@ export default function App() {
 
     const deletedTxIds = multiTxIds || (singleTxId ? [singleTxId] : undefined);
 
-    const merged = mergeDatabases(
-      dbRef.current,
-      updated,
-      deletedMsgId,
-      deletedAssocId,
-      deletedClientId,
-      deletedTxIds,
-      deletedContactId
-    );
+    const merged = isReset
+      ? updated
+      : mergeDatabases(
+          dbRef.current,
+          updated,
+          deletedMsgId,
+          deletedAssocId,
+          deletedClientId,
+          deletedTxIds,
+          deletedContactId,
+          deletedDirectorId,
+          deletedDistributionId
+        );
 
     lastLocalSaveTimeRef.current = Date.now();
     setDb(merged);
@@ -217,15 +235,19 @@ export default function App() {
     try {
       statusResult = await saveDatabase(merged, commitMsg);
       if (statusResult.data) {
-        const finalMerged = mergeDatabases(
-          dbRef.current,
-          statusResult.data,
-          deletedMsgId,
-          deletedAssocId,
-          deletedClientId,
-          deletedTxIds,
-          deletedContactId
-        );
+        const finalMerged = isReset
+          ? statusResult.data
+          : mergeDatabases(
+              dbRef.current,
+              statusResult.data,
+              deletedMsgId,
+              deletedAssocId,
+              deletedClientId,
+              deletedTxIds,
+              deletedContactId,
+              deletedDirectorId,
+              deletedDistributionId
+            );
         setDb(finalMerged);
         dbRef.current = finalMerged;
       }
@@ -265,7 +287,7 @@ export default function App() {
   // If role is associate, ensure they cannot stay on admin-only tabs
   useEffect(() => {
     if (session && session.role === 'associate') {
-      const adminTabs: TabKey[] = ['associates', 'clients', 'profit', 'supabase'];
+      const adminTabs: TabKey[] = ['associates', 'directors', 'clients', 'profit', 'supabase'];
       if (adminTabs.includes(currentTab)) {
         setCurrentTab('dashboard');
       }
@@ -334,6 +356,15 @@ export default function App() {
 
             {currentTab === 'associates' && session.role === 'admin' && (
               <AssociatesView db={db} onUpdateDb={handleUpdateDb} />
+            )}
+
+            {currentTab === 'directors' && session.role === 'admin' && (
+              <DirectorsView
+                db={db}
+                session={session}
+                onUpdateDb={handleUpdateDb}
+                onOpenResetModal={() => setIsResetModalOpen(true)}
+              />
             )}
 
             {currentTab === 'clients' && session.role === 'admin' && (
@@ -405,6 +436,20 @@ export default function App() {
               }}
               onForcePush={async () => {
                 await handleUpdateDb(db, 'Force sync push to repository');
+              }}
+            />
+          )}
+
+          {isResetModalOpen && (
+            <DatabaseResetModal
+              isOpen={isResetModalOpen}
+              onClose={() => setIsResetModalOpen(false)}
+              db={db}
+              session={session}
+              onResetSuccess={(newDb) => {
+                setDb(newDb);
+                dbRef.current = newDb;
+                pullLatestData(true);
               }}
             />
           )}

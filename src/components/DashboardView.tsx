@@ -21,6 +21,8 @@ import {
   ExternalLink,
   Copy,
   Check,
+  Landmark,
+  Award,
 } from 'lucide-react';
 
 interface DashboardViewProps {
@@ -150,6 +152,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 >
                   <BookUser className="w-3.5 h-3.5 text-orange-400" />
                   <span>Contacts ({db.contacts?.length || 0})</span>
+                </button>
+                <button
+                  id="dashDirectorsAdminBtn"
+                  onClick={() => onNavigate('directors')}
+                  className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold border border-white/15 flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <Landmark className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Directors 90% ({db.directors?.length || 0})</span>
                 </button>
                 <button
                   id="dashTransfersAdminBtn"
@@ -330,6 +340,57 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
             <div className="text-[11px] text-rose-500 font-semibold mt-1">
               {formatMoney(totalDue)} pending payment
+            </div>
+          </div>
+
+          {/* Directors 90% Share & P2P Transfers Quick Cards */}
+          <div className="col-span-2 lg:col-span-2 bg-gradient-to-br from-indigo-50/80 to-white rounded-xl p-3.5 border border-indigo-200 shadow-xs flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center">
+                  <Landmark className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-slate-900 block">Board Directors & 90% Share</span>
+                  <span className="text-[10px] text-slate-500">{db.directors?.filter((d) => d.status === 'active').length || 0} Active Directors · Salary-wise distribution</span>
+                </div>
+              </div>
+              <button
+                onClick={() => onNavigate('directors')}
+                className="text-xs text-indigo-700 hover:text-indigo-900 font-semibold flex items-center gap-1 bg-white px-2.5 py-1 rounded-lg border border-indigo-200 shadow-2xs"
+              >
+                <span>Manage</span>
+                <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
+            <div className="flex items-center justify-between text-xs pt-1 border-t border-indigo-100">
+              <span className="text-slate-600">Base Salary Pool: <strong>{formatMoney((db.directors || []).filter(d => d.status === 'active').reduce((s, d) => s + (d.salary || 0), 0))}</strong></span>
+              <span className="text-indigo-700 font-semibold">90% Dist: {db.directorDistributions?.length || 0} batches</span>
+            </div>
+          </div>
+
+          <div className="col-span-2 lg:col-span-2 bg-gradient-to-br from-emerald-50/80 to-white rounded-xl p-3.5 border border-emerald-200 shadow-xs flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center">
+                  <ArrowRightLeft className="w-3.5 h-3.5" />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-slate-900 block">Peer-to-Peer Transfer Records</span>
+                  <span className="text-[10px] text-slate-500">{db.balanceTransfers?.length || 0} Completed P2P Transactions</span>
+                </div>
+              </div>
+              <button
+                onClick={() => onNavigate('transfers')}
+                className="text-xs text-emerald-700 hover:text-emerald-900 font-semibold flex items-center gap-1 bg-white px-2.5 py-1 rounded-lg border border-emerald-200 shadow-2xs"
+              >
+                <span>Ledger</span>
+                <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
+            <div className="flex items-center justify-between text-xs pt-1 border-t border-emerald-100">
+              <span className="text-slate-600">Total Volume: <strong>{formatMoney((db.balanceTransfers || []).reduce((s, x) => s + (x.amount || 0), 0))}</strong></span>
+              <span className="text-emerald-700 font-semibold">Instant Dual Ledger</span>
             </div>
           </div>
         </div>

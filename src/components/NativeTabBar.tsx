@@ -11,6 +11,7 @@ import {
   Database,
   BookUser,
   ArrowRightLeft,
+  Landmark,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -50,6 +51,12 @@ export const NativeTabBar: React.FC<NativeTabBarProps> = ({
       id: 'associates',
       label: 'Associates',
       icon: Users,
+      adminOnly: true,
+    },
+    {
+      id: 'directors',
+      label: 'Directors (90%)',
+      icon: Landmark,
       adminOnly: true,
     },
     {

@@ -1026,5 +1026,103 @@
       "note": "Site visit fuel & joint testing fee contribution",
       "status": "completed"
     }
+  ],
+  "directors": [
+    {
+      "id": "dir-1",
+      "name": "Engr. Md. Rafiqul Alam",
+      "designation": "Managing Director & CEO",
+      "salary": 90000,
+      "phone": "01711223344",
+      "email": "rafiqul.alam@hybridcivil.net",
+      "status": "active",
+      "joiningDate": "2024-01-01",
+      "nid": "19842691234567890",
+      "bankInfo": "Dutch-Bangla Bank Ltd, A/C: 115.120.44558",
+      "notes": "Oversees company governance, major public tenders and structural engineering approvals.",
+      "createdAt": "2024-01-01T09:00:00Z"
+    },
+    {
+      "id": "dir-2",
+      "name": "Engr. Tanvir Ahmed",
+      "designation": "Technical Director",
+      "salary": 60000,
+      "phone": "01711000111",
+      "email": "tanvir.civil@hybridcivil.net",
+      "status": "active",
+      "associateId": "assoc-1",
+      "joiningDate": "2024-02-15",
+      "nid": "19872691234567891",
+      "bankInfo": "BRAC Bank Ltd, A/C: 150120334455",
+      "notes": "Lead structural analysis, foundation integrity tests and site geotechnical reviews.",
+      "createdAt": "2024-02-15T10:00:00Z"
+    },
+    {
+      "id": "dir-3",
+      "name": "Ar. Farhana Kabir",
+      "designation": "Director of Architecture & Urban Design",
+      "salary": 50000,
+      "phone": "01644000444",
+      "email": "farhana.design@hybridcivil.net",
+      "status": "active",
+      "associateId": "assoc-4",
+      "joiningDate": "2024-03-01",
+      "nid": "19902691234567892",
+      "bankInfo": "City Bank Ltd, A/C: 220199485721",
+      "notes": "Directs master plans, 3D modeling, RAJUK approvals and client aesthetic negotiations.",
+      "createdAt": "2024-03-01T11:00:00Z"
+    }
+  ],
+  "directorDistributions": [
+    {
+      "id": "dist-init-1",
+      "date": "2026-03-01",
+      "title": "Q1 2026 Director 90% Net Profit Share Distribution",
+      "totalProfitPool": 100000,
+      "directorSharePercentage": 90,
+      "directorPoolAmount": 90000,
+      "companyRetainedAmount": 10000,
+      "totalDirectorsSalary": 200000,
+      "activeDirectorsCount": 3,
+      "distributionItems": [
+        {
+          "directorId": "dir-1",
+          "directorName": "Engr. Md. Rafiqul Alam",
+          "designation": "Managing Director & CEO",
+          "salary": 90000,
+          "salaryPercentage": 45.0,
+          "shareAmount": 40500,
+          "status": "paid",
+          "paidDate": "2026-03-02",
+          "paymentMethod": "Bank Transfer (DBBL)"
+        },
+        {
+          "directorId": "dir-2",
+          "directorName": "Engr. Tanvir Ahmed",
+          "designation": "Technical Director",
+          "salary": 60000,
+          "salaryPercentage": 30.0,
+          "shareAmount": 27000,
+          "status": "paid",
+          "paidDate": "2026-03-02",
+          "paymentMethod": "Associate Ledger Credit"
+        },
+        {
+          "directorId": "dir-3",
+          "directorName": "Ar. Farhana Kabir",
+          "designation": "Director of Architecture & Urban Design",
+          "salary": 50000,
+          "salaryPercentage": 25.0,
+          "shareAmount": 22500,
+          "status": "paid",
+          "paidDate": "2026-03-02",
+          "paymentMethod": "Bank Transfer (City Bank)"
+        }
+      ],
+      "notes": "Initial Q1 profit distribution based on salary-wise 90% share formula (Total Active Salary: ৳200,000; Pool ৳100,000; 90% Share: ৳90,000).",
+      "recordedBy": "admin",
+      "status": "disbursed",
+      "createdAt": "2026-03-01T17:00:00Z"
+    }
   ]
 }

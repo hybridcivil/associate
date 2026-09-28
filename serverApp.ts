@@ -219,6 +219,60 @@ ${clients
     } catch {}
   };
 
+  const DELETED_DIRECTORS_FILE = path.join(process.cwd(), "data", "deleted_directors.json");
+  const getServerDeletedDirectorIds = (): Set<string> => {
+    try {
+      if (fs.existsSync(DELETED_DIRECTORS_FILE)) {
+        const raw = fs.readFileSync(DELETED_DIRECTORS_FILE, "utf-8");
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) return new Set(arr);
+      }
+    } catch {}
+    return new Set();
+  };
+
+  const recordServerDeletedDirectorId = (id: string) => {
+    try {
+      const set = getServerDeletedDirectorIds();
+      set.add(id);
+      fs.mkdirSync(path.dirname(DELETED_DIRECTORS_FILE), { recursive: true });
+      fs.writeFileSync(DELETED_DIRECTORS_FILE, JSON.stringify(Array.from(set).slice(-300)), "utf-8");
+    } catch {}
+  };
+
+  const DELETED_DISTRIBUTIONS_FILE = path.join(process.cwd(), "data", "deleted_distributions.json");
+  const getServerDeletedDistributionIds = (): Set<string> => {
+    try {
+      if (fs.existsSync(DELETED_DISTRIBUTIONS_FILE)) {
+        const raw = fs.readFileSync(DELETED_DISTRIBUTIONS_FILE, "utf-8");
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) return new Set(arr);
+      }
+    } catch {}
+    return new Set();
+  };
+
+  const recordServerDeletedDistributionId = (id: string) => {
+    try {
+      const set = getServerDeletedDistributionIds();
+      set.add(id);
+      fs.mkdirSync(path.dirname(DELETED_DISTRIBUTIONS_FILE), { recursive: true });
+      fs.writeFileSync(DELETED_DISTRIBUTIONS_FILE, JSON.stringify(Array.from(set).slice(-300)), "utf-8");
+    } catch {}
+  };
+
+  const clearAllServerDeletedFiles = () => {
+    try {
+      if (fs.existsSync(DELETED_MESSAGES_FILE)) fs.writeFileSync(DELETED_MESSAGES_FILE, "[]", "utf-8");
+      if (fs.existsSync(DELETED_ASSOCIATES_FILE)) fs.writeFileSync(DELETED_ASSOCIATES_FILE, "[]", "utf-8");
+      if (fs.existsSync(DELETED_CLIENTS_FILE)) fs.writeFileSync(DELETED_CLIENTS_FILE, "[]", "utf-8");
+      if (fs.existsSync(DELETED_TRANSACTIONS_FILE)) fs.writeFileSync(DELETED_TRANSACTIONS_FILE, "[]", "utf-8");
+      if (fs.existsSync(DELETED_CONTACTS_FILE)) fs.writeFileSync(DELETED_CONTACTS_FILE, "[]", "utf-8");
+      if (fs.existsSync(DELETED_DIRECTORS_FILE)) fs.writeFileSync(DELETED_DIRECTORS_FILE, "[]", "utf-8");
+      if (fs.existsSync(DELETED_DISTRIBUTIONS_FILE)) fs.writeFileSync(DELETED_DISTRIBUTIONS_FILE, "[]", "utf-8");
+    } catch {}
+  };
+
   // Helper to merge databases non-destructively so NO messages or records are ever lost
   const mergeDatabases = (
     localDb: any,
@@ -227,7 +281,9 @@ ${clients
     deletedAssocId?: string,
     deletedClientId?: string,
     deletedTxId?: string | string[],
-    deletedContactId?: string
+    deletedContactId?: string,
+    deletedDirectorId?: string,
+    deletedDistributionId?: string
   ): any => {
     if (!localDb) return incomingDb || {};
     if (!incomingDb) return localDb || {};
@@ -379,6 +435,46 @@ ${clients
       }
     }
 
+    // 8. Merge directors
+    const directorMap = new Map<string, any>();
+    for (const d of (localDb.directors || [])) {
+      if (d && d.id) directorMap.set(d.id, d);
+    }
+    for (const d of (incomingDb.directors || [])) {
+      if (d && d.id) {
+        const existing = directorMap.get(d.id);
+        directorMap.set(d.id, existing ? { ...existing, ...d } : d);
+      }
+    }
+    if (deletedDirectorId) {
+      recordServerDeletedDirectorId(deletedDirectorId);
+      directorMap.delete(deletedDirectorId);
+    }
+    const serverDelDirs = getServerDeletedDirectorIds();
+    for (const delId of serverDelDirs) {
+      directorMap.delete(delId);
+    }
+
+    // 9. Merge director distributions
+    const distMap = new Map<string, any>();
+    for (const dst of (localDb.directorDistributions || [])) {
+      if (dst && dst.id) distMap.set(dst.id, dst);
+    }
+    for (const dst of (incomingDb.directorDistributions || [])) {
+      if (dst && dst.id) {
+        const existing = distMap.get(dst.id);
+        distMap.set(dst.id, existing ? { ...existing, ...dst } : dst);
+      }
+    }
+    if (deletedDistributionId) {
+      recordServerDeletedDistributionId(deletedDistributionId);
+      distMap.delete(deletedDistributionId);
+    }
+    const serverDelDists = getServerDeletedDistributionIds();
+    for (const delId of serverDelDists) {
+      distMap.delete(delId);
+    }
+
     return {
       admin: incomingDb.admin || localDb.admin || { username: "admin", password: "admin123" },
       associates: Array.from(associateMap.values()),
@@ -388,6 +484,8 @@ ${clients
       messages: mergedMessages,
       contacts: Array.from(contactMap.values()),
       balanceTransfers: Array.from(transferMap.values()),
+      directors: Array.from(directorMap.values()),
+      directorDistributions: Array.from(distMap.values()),
     };
   };
 
@@ -823,6 +921,14 @@ ${clients
           if (delContacts.size > 0 && Array.isArray(localDb.contacts)) {
             localDb.contacts = localDb.contacts.filter((c: any) => c && !delContacts.has(c.id));
           }
+          const delDirs = getServerDeletedDirectorIds();
+          if (delDirs.size > 0 && Array.isArray(localDb.directors)) {
+            localDb.directors = localDb.directors.filter((d: any) => d && !delDirs.has(d.id));
+          }
+          const delDists = getServerDeletedDistributionIds();
+          if (delDists.size > 0 && Array.isArray(localDb.directorDistributions)) {
+            localDb.directorDistributions = localDb.directorDistributions.filter((dst: any) => dst && !delDists.has(dst.id));
+          }
         } catch (e) {}
       }
 
@@ -942,6 +1048,17 @@ ${clients
       const deleteContactMatch = typeof message === "string" && message.match(/Delete contact ([a-zA-Z0-9_-]+)/);
       const deletedContactId = deleteContactMatch ? deleteContactMatch[1] : req.body.deletedContactId;
 
+      const deleteDirMatch = typeof message === "string" && message.match(/Delete director ([a-zA-Z0-9_-]+)/);
+      const deletedDirectorId = deleteDirMatch ? deleteDirMatch[1] : req.body.deletedDirectorId;
+
+      const deleteDistMatch = typeof message === "string" && message.match(/Delete distribution ([a-zA-Z0-9_-]+)/);
+      const deletedDistributionId = deleteDistMatch ? deleteDistMatch[1] : req.body.deletedDistributionId;
+
+      const isReset = Boolean(
+        req.body.isReset ||
+        (typeof message === "string" && (message.startsWith("RESET_DATABASE:") || message.includes("Reset database")))
+      );
+
       const deleteTxMatch = typeof message === "string" && message.match(/Delete transaction ([a-zA-Z0-9_-]+)/);
       const singleTxId = deleteTxMatch ? deleteTxMatch[1] : undefined;
 
@@ -950,58 +1067,92 @@ ${clients
 
       const deletedTxIds = multiTxIds || (singleTxId ? [singleTxId] : req.body.deletedTxIds);
 
-      if (deletedAssocId) recordServerDeletedAssocId(deletedAssocId);
-      if (deletedClientId) recordServerDeletedClientId(deletedClientId);
-      if (deletedContactId) recordServerDeletedContactId(deletedContactId);
-      if (deletedTxIds) recordServerDeletedTxIds(Array.isArray(deletedTxIds) ? deletedTxIds : [deletedTxIds]);
+      if (isReset) {
+        clearAllServerDeletedFiles();
+      } else {
+        if (deletedAssocId) recordServerDeletedAssocId(deletedAssocId);
+        if (deletedClientId) recordServerDeletedClientId(deletedClientId);
+        if (deletedContactId) recordServerDeletedContactId(deletedContactId);
+        if (deletedDirectorId) recordServerDeletedDirectorId(deletedDirectorId);
+        if (deletedDistributionId) recordServerDeletedDistributionId(deletedDistributionId);
+        if (deletedTxIds) recordServerDeletedTxIds(Array.isArray(deletedTxIds) ? deletedTxIds : [deletedTxIds]);
+      }
 
-      // Step 1: Read latest from Supabase if configured
-      let remoteDb: any = null;
       const serverSbCfg = getServerSupabaseConfig();
-      if (serverSbCfg.url && serverSbCfg.anonKey) {
-        try {
-          remoteDb = await fetchSupabaseServerDatabase();
-        } catch (sbErr) {
-          console.warn("Could not fetch remote from Supabase before save:", sbErr);
+
+      let validatedDb: any;
+
+      if (isReset) {
+        validatedDb = {
+          admin: data.admin || { username: "admin", password: "admin123" },
+          associates: Array.isArray(data.associates) ? data.associates : [],
+          clients: Array.isArray(data.clients) ? data.clients : [],
+          transactions: Array.isArray(data.transactions) ? data.transactions : [],
+          payments: Array.isArray(data.payments) ? data.payments : [],
+          messages: Array.isArray(data.messages) ? data.messages : [],
+          contacts: Array.isArray(data.contacts) ? data.contacts : [],
+          balanceTransfers: Array.isArray(data.balanceTransfers) ? data.balanceTransfers : [],
+          directors: Array.isArray(data.directors) ? data.directors : [],
+          directorDistributions: Array.isArray(data.directorDistributions) ? data.directorDistributions : [],
+        };
+      } else {
+        // Step 1: Read latest from Supabase if configured
+        let remoteDb: any = null;
+        if (serverSbCfg.url && serverSbCfg.anonKey) {
+          try {
+            remoteDb = await fetchSupabaseServerDatabase();
+          } catch (sbErr) {
+            console.warn("Could not fetch remote from Supabase before save:", sbErr);
+          }
         }
-      }
 
-      // Step 2: Merge the incoming database non-destructively
-      const baseDb = remoteDb || currentLocalDb;
-      let mergedDb = mergeDatabases(baseDb, data, deletedMsgId, deletedAssocId, deletedClientId, deletedTxIds, deletedContactId);
-      if (currentLocalDb && baseDb !== currentLocalDb) {
-        mergedDb = mergeDatabases(mergedDb, currentLocalDb, deletedMsgId, deletedAssocId, deletedClientId, deletedTxIds, deletedContactId);
-      }
+        // Step 2: Merge the incoming database non-destructively
+        const baseDb = remoteDb || currentLocalDb;
+        let mergedDb = mergeDatabases(baseDb, data, deletedMsgId, deletedAssocId, deletedClientId, deletedTxIds, deletedContactId, deletedDirectorId, deletedDistributionId);
+        if (currentLocalDb && baseDb !== currentLocalDb) {
+          mergedDb = mergeDatabases(mergedDb, currentLocalDb, deletedMsgId, deletedAssocId, deletedClientId, deletedTxIds, deletedContactId, deletedDirectorId, deletedDistributionId);
+        }
 
-      // Sanitize and validate merged database structure
-      let validatedAssociates = Array.isArray(mergedDb.associates) ? mergedDb.associates : [];
-      if (deletedAssocId) {
-        validatedAssociates = validatedAssociates.filter((a: any) => a && a.id !== deletedAssocId);
-      }
-      let validatedClients = Array.isArray(mergedDb.clients) ? mergedDb.clients : [];
-      if (deletedClientId) {
-        validatedClients = validatedClients.filter((c: any) => c && c.id !== deletedClientId);
-      }
-      let validatedTransactions = Array.isArray(mergedDb.transactions) ? mergedDb.transactions : [];
-      if (deletedTxIds) {
-        const delSet = new Set(Array.isArray(deletedTxIds) ? deletedTxIds : [deletedTxIds]);
-        validatedTransactions = validatedTransactions.filter((t: any) => t && !delSet.has(t.id));
-      }
-      let validatedContacts = Array.isArray(mergedDb.contacts) ? mergedDb.contacts : [];
-      if (deletedContactId) {
-        validatedContacts = validatedContacts.filter((c: any) => c && c.id !== deletedContactId);
-      }
+        // Sanitize and validate merged database structure
+        let validatedAssociates = Array.isArray(mergedDb.associates) ? mergedDb.associates : [];
+        if (deletedAssocId) {
+          validatedAssociates = validatedAssociates.filter((a: any) => a && a.id !== deletedAssocId);
+        }
+        let validatedClients = Array.isArray(mergedDb.clients) ? mergedDb.clients : [];
+        if (deletedClientId) {
+          validatedClients = validatedClients.filter((c: any) => c && c.id !== deletedClientId);
+        }
+        let validatedTransactions = Array.isArray(mergedDb.transactions) ? mergedDb.transactions : [];
+        if (deletedTxIds) {
+          const delSet = new Set(Array.isArray(deletedTxIds) ? deletedTxIds : [deletedTxIds]);
+          validatedTransactions = validatedTransactions.filter((t: any) => t && !delSet.has(t.id));
+        }
+        let validatedContacts = Array.isArray(mergedDb.contacts) ? mergedDb.contacts : [];
+        if (deletedContactId) {
+          validatedContacts = validatedContacts.filter((c: any) => c && c.id !== deletedContactId);
+        }
+        let validatedDirectors = Array.isArray(mergedDb.directors) ? mergedDb.directors : [];
+        if (deletedDirectorId) {
+          validatedDirectors = validatedDirectors.filter((d: any) => d && d.id !== deletedDirectorId);
+        }
+        let validatedDistributions = Array.isArray(mergedDb.directorDistributions) ? mergedDb.directorDistributions : [];
+        if (deletedDistributionId) {
+          validatedDistributions = validatedDistributions.filter((dst: any) => dst && dst.id !== deletedDistributionId);
+        }
 
-      const validatedDb = {
-        admin: mergedDb.admin || { username: "admin", password: "admin123" },
-        associates: validatedAssociates,
-        clients: validatedClients,
-        transactions: validatedTransactions,
-        payments: Array.isArray(mergedDb.payments) ? mergedDb.payments : [],
-        messages: Array.isArray(mergedDb.messages) ? mergedDb.messages : [],
-        contacts: validatedContacts,
-        balanceTransfers: Array.isArray(mergedDb.balanceTransfers) ? mergedDb.balanceTransfers : [],
-      };
+        validatedDb = {
+          admin: mergedDb.admin || { username: "admin", password: "admin123" },
+          associates: validatedAssociates,
+          clients: validatedClients,
+          transactions: validatedTransactions,
+          payments: Array.isArray(mergedDb.payments) ? mergedDb.payments : [],
+          messages: Array.isArray(mergedDb.messages) ? mergedDb.messages : [],
+          contacts: validatedContacts,
+          balanceTransfers: Array.isArray(mergedDb.balanceTransfers) ? mergedDb.balanceTransfers : [],
+          directors: validatedDirectors,
+          directorDistributions: validatedDistributions,
+        };
+      }
 
       // Step 3: Write the merged database locally
       const jsonString = JSON.stringify(validatedDb, null, 2);
@@ -1107,6 +1258,62 @@ ${clients
         githubSaved: false,
         error: err.message || "Failed to save database.",
       });
+    }
+  });
+
+  // POST /database/reset - Authoritative server database reset
+  router.post("/database/reset", async (req, res) => {
+    try {
+      res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+      clearAllServerDeletedFiles();
+
+      const { data, mode = "factory_default" } = req.body;
+      const dbFilePath = path.join(process.cwd(), "data", "hybrid_civil_database.json");
+
+      let finalDb: any;
+      if (data && typeof data === "object") {
+        finalDb = {
+          admin: data.admin || { username: "admin", password: "admin123" },
+          associates: Array.isArray(data.associates) ? data.associates : [],
+          clients: Array.isArray(data.clients) ? data.clients : [],
+          transactions: Array.isArray(data.transactions) ? data.transactions : [],
+          payments: Array.isArray(data.payments) ? data.payments : [],
+          messages: Array.isArray(data.messages) ? data.messages : [],
+          contacts: Array.isArray(data.contacts) ? data.contacts : [],
+          balanceTransfers: Array.isArray(data.balanceTransfers) ? data.balanceTransfers : [],
+          directors: Array.isArray(data.directors) ? data.directors : [],
+          directorDistributions: Array.isArray(data.directorDistributions) ? data.directorDistributions : [],
+        };
+      } else {
+        finalDb = {
+          admin: { username: "admin", password: "admin123" },
+          associates: [],
+          clients: [],
+          transactions: [],
+          payments: [],
+          messages: [],
+          contacts: [],
+          balanceTransfers: [],
+          directors: [],
+          directorDistributions: [],
+        };
+      }
+
+      await fs.promises.mkdir(path.dirname(dbFilePath), { recursive: true });
+      await fs.promises.writeFile(dbFilePath, JSON.stringify(finalDb, null, 2), "utf-8");
+
+      const overviewMd = generateOverviewMarkdown(finalDb);
+      const overviewPath = path.join(process.cwd(), "PROJECT_OVERVIEW.md");
+      await fs.promises.writeFile(overviewPath, overviewMd, "utf-8");
+
+      res.json({
+        success: true,
+        message: `Database successfully reset [Mode: ${mode}]`,
+        data: finalDb,
+      });
+    } catch (err: any) {
+      console.error("Database reset failed on server:", err);
+      res.status(500).json({ error: err.message || "Failed to reset database." });
     }
   });
 
