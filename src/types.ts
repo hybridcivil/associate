@@ -65,6 +65,36 @@ export interface Message {
   editedAt?: string;
 }
 
+export interface Contact {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  organization?: string;
+  designation?: string;
+  category: 'client' | 'contractor' | 'engineer' | 'vendor' | 'consultant' | 'official' | 'other';
+  address?: string;
+  notes?: string;
+  associateId: string;
+  associateName?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface BalanceTransfer {
+  id: string;
+  senderId: string;
+  senderName: string;
+  receiverId: string;
+  receiverName: string;
+  amount: number;
+  date: string;
+  note?: string;
+  status: 'completed' | 'cancelled';
+  senderPaymentId?: string;
+  receiverTxId?: string;
+}
+
 export interface AppDatabase {
   admin: { username: string; password: string };
   associates: Associate[];
@@ -72,6 +102,8 @@ export interface AppDatabase {
   transactions: Transaction[];
   payments: Payment[];
   messages: Message[];
+  contacts?: Contact[];
+  balanceTransfers?: BalanceTransfer[];
 }
 
 export interface GitHubConfig {
@@ -129,8 +161,10 @@ export type TabKey =
   | 'dashboard'
   | 'associates'
   | 'clients'
+  | 'contacts'
   | 'profit'
   | 'transactions'
+  | 'transfers'
   | 'messages'
   | 'supabase'
   | 'github'

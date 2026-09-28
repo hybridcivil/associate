@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { AppDatabase, formatMoney, calculateAssociateTotals } from '../utils/storage';
 import { Session, TabKey } from '../types';
 import {
@@ -15,6 +15,12 @@ import {
   AlertCircle,
   UserCircle,
   MessageSquare,
+  BookUser,
+  ArrowRightLeft,
+  Share2,
+  ExternalLink,
+  Copy,
+  Check,
 } from 'lucide-react';
 
 interface DashboardViewProps {
@@ -23,12 +29,43 @@ interface DashboardViewProps {
   onNavigate: (tab: TabKey) => void;
 }
 
+const OFFICIAL_FB_URL = 'https://fb.com/hybridcivil';
+
 export const DashboardView: React.FC<DashboardViewProps> = ({
   db,
   session,
   onNavigate,
 }) => {
   const isAdmin = session.role === 'admin';
+  const [fbCopied, setFbCopied] = useState(false);
+
+  const handleCopyFb = async () => {
+    try {
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(OFFICIAL_FB_URL);
+      }
+      setFbCopied(true);
+      setTimeout(() => setFbCopied(false), 2500);
+    } catch {}
+  };
+
+  const handleShareFb = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Hybrid Civil Network',
+          text: 'Official Hybrid Civil engineering community page & project updates.',
+          url: OFFICIAL_FB_URL,
+        });
+        return;
+      } catch {}
+    }
+    window.open(
+      `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(OFFICIAL_FB_URL)}`,
+      '_blank',
+      'noopener,noreferrer'
+    );
+  };
 
   // Calculate admin global stats
   const totalProfit = db.transactions
@@ -107,6 +144,22 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <span>+ Client</span>
                 </button>
                 <button
+                  id="dashContactsAdminBtn"
+                  onClick={() => onNavigate('contacts')}
+                  className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold border border-white/15 flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <BookUser className="w-3.5 h-3.5 text-orange-400" />
+                  <span>Contacts ({db.contacts?.length || 0})</span>
+                </button>
+                <button
+                  id="dashTransfersAdminBtn"
+                  onClick={() => onNavigate('transfers')}
+                  className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold border border-white/15 flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <ArrowRightLeft className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Transfers ({db.balanceTransfers?.length || 0})</span>
+                </button>
+                <button
                   id="dashMessagesBtn"
                   onClick={() => onNavigate('messages')}
                   className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold border border-white/15 flex items-center gap-1.5 transition-all cursor-pointer"
@@ -126,12 +179,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <span>My Share Ledger</span>
                 </button>
                 <button
+                  id="dashContactsAssociateBtn"
+                  onClick={() => onNavigate('contacts')}
+                  className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold border border-white/15 flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <BookUser className="w-3.5 h-3.5 text-orange-400" />
+                  <span>Contacts Directory</span>
+                </button>
+                <button
+                  id="dashTransferAssociateBtn"
+                  onClick={() => onNavigate('transfers')}
+                  className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold border border-white/15 flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <ArrowRightLeft className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Balance Transfer</span>
+                </button>
+                <button
                   id="dashMessagesAssocBtn"
                   onClick={() => onNavigate('messages')}
                   className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold border border-white/15 flex items-center gap-1.5 transition-all cursor-pointer"
                 >
                   <MessageSquare className="w-3.5 h-3.5 text-orange-400" />
-                  <span>Message Admin</span>
+                  <span>Messages</span>
                 </button>
                 <button
                   id="dashProfileAssociateBtn"
@@ -144,6 +213,51 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Official Facebook Link Sharing Card */}
+      <div className="bg-gradient-to-r from-[#1877F2]/90 via-[#1877F2] to-[#0D53B5] rounded-xl p-3 sm:p-4 text-white shadow-xs border border-blue-400/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-white text-[#1877F2] flex items-center justify-center font-black text-xl flex-shrink-0 shadow-xs">
+            f
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-white/20 text-white">
+                Official Facebook Page
+              </span>
+              <span className="text-xs text-blue-100 font-mono">fb.com/hybridcivil</span>
+            </div>
+            <p className="text-xs text-blue-100 mt-0.5">
+              Share Hybrid Civil with client contacts and engineering partners: <span className="font-bold underline">https://fb.com/hybridcivil</span>
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 self-start sm:self-center">
+          <button
+            onClick={handleShareFb}
+            className="px-3 py-1.5 rounded-lg bg-white text-[#1877F2] hover:bg-blue-50 text-xs font-bold shadow-xs flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+          >
+            <Share2 className="w-3.5 h-3.5" />
+            <span>Share Page</span>
+          </button>
+          <button
+            onClick={handleCopyFb}
+            className="px-3 py-1.5 rounded-lg bg-white/15 hover:bg-white/25 text-white text-xs font-semibold border border-white/20 flex items-center gap-1.5 transition-all cursor-pointer"
+          >
+            {fbCopied ? <Check className="w-3.5 h-3.5 text-emerald-300" /> : <Copy className="w-3.5 h-3.5" />}
+            <span>{fbCopied ? 'Copied!' : 'Copy Link'}</span>
+          </button>
+          <a
+            href={OFFICIAL_FB_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold border border-white/15 flex items-center gap-1 transition-all cursor-pointer"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
         </div>
       </div>
 

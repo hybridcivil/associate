@@ -219,6 +219,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
 
   // Current active associate for thread
   const activeAssociateId = isAdmin ? selectedAssociateId : session.id || '';
+  const isBroadcastThread = isAdmin && activeAssociateId === 'all';
   const activeAssociate = (db.associates || []).find((a) => a.id === activeAssociateId);
   const activeAssociateTotals = activeAssociate
     ? calculateAssociateTotals(db, activeAssociate.id)
@@ -226,12 +227,26 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
 
   // Messages in active thread (robust matching by associateId, senderId, or receiverId)
   const threadMessages = (db.messages || [])
-    .filter(
-      (m) =>
+    .filter((m) => {
+      if (isBroadcastThread) {
+        return (
+          m.senderRole === 'admin' &&
+          (m.subject?.startsWith('[Announcement]') ||
+            m.subject?.startsWith('[Notice to All') ||
+            m.receiverId === 'all')
+        );
+      }
+      return (
         m.associateId === activeAssociateId ||
         m.senderId === activeAssociateId ||
         m.receiverId === activeAssociateId
-    )
+      );
+    })
+    .filter((m, idx, arr) => {
+      if (!isBroadcastThread) return true;
+      // Deduplicate broadcasts that were sent to multiple associates at the exact same timestamp
+      return arr.findIndex((x) => x.timestamp === m.timestamp && x.content === m.content) === idx;
+    })
     .sort(
       (a, b) =>
         new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
@@ -293,6 +308,55 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
     }
 
     setIsSending(true);
+
+    // If Admin is broadcasting to All Associates
+    if (isAdmin && activeAssociateId === 'all') {
+      const activeAssocs = (db.associates || []).filter((a) => a.status === 'active');
+      if (activeAssocs.length === 0) {
+        showNotice('No active associates found to broadcast to.', 'error');
+        setIsSending(false);
+        return;
+      }
+
+      const timestamp = new Date().toISOString();
+      const broadcastSubject = newSubject.trim()
+        ? `[Announcement] ${newSubject.trim()}`
+        : '[Announcement to All Associates]';
+
+      const broadcastMessages: Message[] = activeAssocs.map((assoc) => ({
+        id: 'msg-' + generateId(),
+        senderRole: 'admin',
+        senderId: 'admin',
+        senderName: 'Administrator',
+        receiverId: assoc.id,
+        receiverName: assoc.name,
+        associateId: assoc.id,
+        subject: broadcastSubject,
+        content,
+        timestamp,
+        read: false,
+        priority: isUrgent ? 'urgent' : 'normal',
+        category: newCategory,
+      }));
+
+      const updatedDb: AppDatabase = {
+        ...db,
+        messages: [...(db.messages || []), ...broadcastMessages],
+      };
+
+      const commitMsg = `Broadcast Message: Admin -> All Associates (${activeAssocs.length} partners) [${broadcastSubject}]`;
+      onUpdateDb(updatedDb, commitMsg);
+
+      setNewMessageText('');
+      setNewSubject('');
+      setIsUrgent(false);
+      setIsSending(false);
+      showNotice(
+        `Broadcast announcement delivered to all ${activeAssocs.length} active associates successfully!`,
+        'success'
+      );
+      return;
+    }
 
     const newMsg: Message = {
       id: 'msg-' + generateId(),
@@ -585,6 +649,39 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
 
             {/* Associate List */}
             <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
+              {/* Broadcast Channel Option for Admin */}
+              <button
+                type="button"
+                id="adminBroadcastThreadBtn"
+                onClick={() => setSelectedAssociateId('all')}
+                className={`w-full text-left p-3 transition-colors flex items-center gap-2.5 border-b border-slate-200 cursor-pointer ${
+                  selectedAssociateId === 'all'
+                    ? 'bg-gradient-to-r from-orange-50 to-amber-50 border-l-4 border-orange-500 shadow-xs'
+                    : 'hover:bg-slate-50 bg-slate-50/60'
+                }`}
+              >
+                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#f28c28] to-[#ffaa44] text-white flex items-center justify-center font-bold text-sm flex-shrink-0 shadow-xs">
+                  📢
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <span
+                      className={`text-xs font-bold truncate ${
+                        selectedAssociateId === 'all' ? 'text-orange-950 font-black' : 'text-slate-800'
+                      }`}
+                    >
+                      Broadcast to All Associates
+                    </span>
+                    <span className="text-[9.5px] px-1.5 py-0.2 rounded-full bg-orange-100 text-orange-800 font-bold">
+                      {db.associates.filter((a) => a.status === 'active').length} partners
+                    </span>
+                  </div>
+                  <p className="text-[10.5px] text-slate-500 truncate mt-0.5">
+                    One-click message dispatch to every associate
+                  </p>
+                </div>
+              </button>
+
               {associateThreads.length === 0 ? (
                 <div className="p-8 text-center text-slate-400 text-xs">
                   No associate threads found.
@@ -674,29 +771,39 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
           <div className="p-3 border-b border-slate-200 bg-slate-50/80 flex items-center justify-between gap-3">
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-full bg-[#f28c28] text-white flex items-center justify-center font-bold text-xs flex-shrink-0 shadow-xs">
-                {isAdmin
-                  ? activeAssociate?.name.substring(0, 2).toUpperCase() || 'AS'
-                  : 'HC'}
+                {isBroadcastThread ? '📢' : isAdmin ? activeAssociate?.name.substring(0, 2).toUpperCase() || 'AS' : 'HC'}
               </div>
               <div>
                 <h3 className="text-xs sm:text-sm font-bold text-[#10243a] flex items-center gap-1.5">
-                  {isAdmin
+                  {isBroadcastThread
+                    ? 'Broadcast Channel — All Certified Associates'
+                    : isAdmin
                     ? activeAssociate?.name || 'Select an Associate Thread'
                     : 'Hybrid Civil Administration Desk'}
-                  {isAdmin && activeAssociate && (
-                    <span
-                      className={`text-[9.5px] px-1.5 py-0.2 rounded-full font-semibold uppercase ${
-                        activeAssociate.status === 'active'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-slate-200 text-slate-600'
-                      }`}
-                    >
-                      {activeAssociate.status}
+                  {isBroadcastThread ? (
+                    <span className="text-[9.5px] px-2 py-0.5 rounded-full font-bold bg-orange-100 text-orange-800 border border-orange-200">
+                      {db.associates.filter((a) => a.status === 'active').length} Active Recipients
                     </span>
+                  ) : (
+                    isAdmin && activeAssociate && (
+                      <span
+                        className={`text-[9.5px] px-1.5 py-0.2 rounded-full font-semibold uppercase ${
+                          activeAssociate.status === 'active'
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-slate-200 text-slate-600'
+                        }`}
+                      >
+                        {activeAssociate.status}
+                      </span>
+                    )
                   )}
                 </h3>
                 <div className="flex items-center gap-2 text-[10.5px] text-slate-500 mt-0.5">
-                  {isAdmin && activeAssociate ? (
+                  {isBroadcastThread ? (
+                    <span>
+                      One-click dispatch delivering notifications and policy circulars to every associate inbox simultaneously.
+                    </span>
+                  ) : isAdmin && activeAssociate ? (
                     <>
                       <span className="flex items-center gap-1 font-mono">
                         <Phone className="w-3 h-3 text-slate-400" />
@@ -720,9 +827,14 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
               </div>
             </div>
 
-            {isAdmin && activeAssociate && (
+            {isAdmin && !isBroadcastThread && activeAssociate && (
               <span className="text-[10px] text-slate-400 bg-white px-2 py-1 rounded border border-slate-200">
                 {threadMessages.length} Messages
+              </span>
+            )}
+            {isBroadcastThread && (
+              <span className="text-[10px] text-orange-700 bg-orange-50 px-2 py-1 rounded border border-orange-200 font-semibold">
+                {threadMessages.length} Past Broadcasts
               </span>
             )}
           </div>
@@ -951,15 +1063,19 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
             onSubmit={handleSendMessage}
             className="p-3 border-t border-slate-200 bg-white space-y-2"
           >
-            {/* Subject, Category & Urgent row for associate */}
-            {!isAdmin && (
+            {/* Subject, Category & Urgent row for associate OR Admin broadcast */}
+            {(!isAdmin || isBroadcastThread) && (
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
                 <div className="sm:col-span-6">
                   <input
                     type="text"
                     value={newSubject}
                     onChange={(e) => setNewSubject(e.target.value)}
-                    placeholder="Subject / Topic (optional)..."
+                    placeholder={
+                      isBroadcastThread
+                        ? "Broadcast Subject (e.g. Q3 Profit Release, Site Policy)..."
+                        : "Subject / Topic (optional)..."
+                    }
                     className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-orange-500"
                   />
                 </div>
@@ -970,7 +1086,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                     onChange={(e) => setNewCategory(e.target.value as any)}
                     className="w-full text-xs px-2 py-1.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-1 focus:ring-orange-500 bg-white"
                   >
-                    <option value="general">General Query</option>
+                    <option value="general">General Notice</option>
                     <option value="payment">Profit / Payment</option>
                     <option value="project">Client / Project</option>
                     <option value="technical">Structural / Drawing</option>
@@ -989,7 +1105,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                     }`}
                   >
                     <AlertTriangle className={`w-3 h-3 ${isUrgent ? 'text-rose-600' : 'text-slate-400'}`} />
-                    <span>{isUrgent ? 'Urgent Priority' : 'Normal Priority'}</span>
+                    <span>{isUrgent ? 'Urgent Notice' : 'Normal Priority'}</span>
                   </button>
                 </div>
               </div>
@@ -1007,7 +1123,9 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                 }}
                 rows={2}
                 placeholder={
-                  isAdmin
+                  isBroadcastThread
+                    ? 'Write announcement to broadcast to ALL associates (Ctrl+Enter to send)...'
+                    : isAdmin
                     ? `Reply to ${activeAssociate?.name || 'Associate'} (Ctrl+Enter to send)...`
                     : 'Write your message to Administrator (Ctrl+Enter to send)...'
                 }
@@ -1028,7 +1146,7 @@ export const MessagesView: React.FC<MessagesViewProps> = ({
                 ) : (
                   <Send className="w-3.5 h-3.5" />
                 )}
-                <span>Send</span>
+                <span>{isBroadcastThread ? '📢 Broadcast to All' : 'Send'}</span>
               </button>
             </div>
           </form>

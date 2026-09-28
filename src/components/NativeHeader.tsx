@@ -105,6 +105,21 @@ export const NativeHeader: React.FC<NativeHeaderProps> = ({
             </span>
           </button>
 
+          {/* Official Facebook Link Button */}
+          <a
+            id="headerFbLinkBtn"
+            href="https://fb.com/hybridcivil"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-2 py-1 text-xs rounded-lg bg-[#1877F2]/20 hover:bg-[#1877F2]/35 border border-[#1877F2]/40 text-blue-200 transition-all active:scale-95"
+            title="Official Hybrid Civil Facebook Page: https://fb.com/hybridcivil"
+          >
+            <span className="w-3.5 h-3.5 rounded bg-[#1877F2] text-white flex items-center justify-center font-black text-[10px] flex-shrink-0">
+              f
+            </span>
+            <span className="font-semibold text-[11px] hidden lg:inline">fb.com/hybridcivil</span>
+          </a>
+
           {/* User Badge */}
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black/20 border border-white/10 text-xs">
             {isAdmin ? (

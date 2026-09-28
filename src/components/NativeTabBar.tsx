@@ -9,6 +9,8 @@ import {
   MessageSquare,
   UserCircle,
   Database,
+  BookUser,
+  ArrowRightLeft,
 } from 'lucide-react';
 import { motion } from 'motion/react';
 
@@ -57,6 +59,11 @@ export const NativeTabBar: React.FC<NativeTabBarProps> = ({
       adminOnly: true,
     },
     {
+      id: 'contacts',
+      label: 'Contacts',
+      icon: BookUser,
+    },
+    {
       id: 'profit',
       label: 'Profit Entry',
       icon: PieChart,
@@ -67,6 +74,11 @@ export const NativeTabBar: React.FC<NativeTabBarProps> = ({
       label: 'Transactions',
       icon: Receipt,
       badge: pendingDueCount > 0 ? pendingDueCount : undefined,
+    },
+    {
+      id: 'transfers',
+      label: 'Balance Transfer',
+      icon: ArrowRightLeft,
     },
     {
       id: 'messages',

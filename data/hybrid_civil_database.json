@@ -941,5 +941,90 @@
       "category": "general",
       "isEdited": false
     }
+  ],
+  "contacts": [
+    {
+      "id": "contact-1",
+      "name": "Engr. Mahbubur Rahman",
+      "phone": "01712345678",
+      "email": "mahbub.ce@gmail.com",
+      "organization": "Metro Rail Subcontractor Consortium",
+      "designation": "Chief Structural Consultant",
+      "category": "consultant",
+      "address": "Agargaon, Dhaka",
+      "notes": "Consultant for Metro Rail package foundation testing and pile integrity.",
+      "associateId": "assoc-1",
+      "associateName": "Engr. Tanvir Ahmed",
+      "createdAt": "2026-03-10T10:00:00Z"
+    },
+    {
+      "id": "contact-2",
+      "name": "Mohammad Rafiqul Islam",
+      "phone": "01819876543",
+      "email": "rafiq.builders@yahoo.com",
+      "organization": "Delta Construction & Piling Ltd.",
+      "designation": "Managing Director / Contractor",
+      "category": "contractor",
+      "address": "Agrabad C/A, Chattogram",
+      "notes": "Deep piling, bentonite slurry boring, and casting contractor.",
+      "associateId": "assoc-3",
+      "associateName": "Engr. Rakibul Hasan",
+      "createdAt": "2026-03-12T14:30:00Z"
+    },
+    {
+      "id": "contact-3",
+      "name": "Ar. Shamsul Alam",
+      "phone": "01678112233",
+      "email": "shamsul.studio@architects.net",
+      "organization": "Alam & Partners Design Studio",
+      "designation": "Lead Architect",
+      "category": "engineer",
+      "address": "Gulshan 2, Dhaka",
+      "notes": "Architectural drawings and building clearance consultant.",
+      "associateId": "assoc-4",
+      "associateName": "Ar. Farhana Kabir",
+      "createdAt": "2026-03-14T09:15:00Z"
+    },
+    {
+      "id": "contact-4",
+      "name": "Al-Haj Kabir Uddin",
+      "phone": "01912445566",
+      "email": "kabir.steel@gmail.com",
+      "organization": "BSRM & AKS Steel Distribution Depot",
+      "designation": "Authorized Rebar Vendor",
+      "category": "vendor",
+      "address": "Tejgaon Industrial Area, Dhaka",
+      "notes": "500W grade rebar and high-tensile cement supplier for residential sites.",
+      "associateId": "assoc-2",
+      "associateName": "Engr. Nadia Sultana",
+      "createdAt": "2026-03-15T11:20:00Z"
+    },
+    {
+      "id": "contact-5",
+      "name": "Kazi Nazmul Huda",
+      "phone": "01711559988",
+      "email": "nazmul.huda@rajuk.gov.bd",
+      "organization": "City Development & Planning Authority",
+      "designation": "Assistant Town Planner / Municipal Official",
+      "category": "official",
+      "address": "RAJUK Bhaban, Motijheel, Dhaka",
+      "notes": "Building plan approval, occupancy certificates, and fire safety clearances.",
+      "associateId": "assoc-1",
+      "associateName": "Engr. Tanvir Ahmed",
+      "createdAt": "2026-03-16T16:00:00Z"
+    }
+  ],
+  "balanceTransfers": [
+    {
+      "id": "xfer-init-1",
+      "senderId": "assoc-1",
+      "senderName": "Engr. Tanvir Ahmed",
+      "receiverId": "assoc-2",
+      "receiverName": "Engr. Nadia Sultana",
+      "amount": 500,
+      "date": "2026-03-19",
+      "note": "Site visit fuel & joint testing fee contribution",
+      "status": "completed"
+    }
   ]
 }

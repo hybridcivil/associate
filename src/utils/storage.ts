@@ -39,6 +39,7 @@ export const DELETED_MSGS_KEY = 'hybridCivilDeletedMsgs_v1';
 export const DELETED_ASSOCS_KEY = 'hybridCivilDeletedAssocs_v1';
 export const DELETED_CLIENTS_KEY = 'hybridCivilDeletedClients_v1';
 export const DELETED_TXS_KEY = 'hybridCivilDeletedTxs_v1';
+export const DELETED_CONTACTS_KEY = 'hybridCivilDeletedContacts_v1';
 
 export type { AppDatabase, SaveStatus, SupabaseConfig };
 
@@ -128,6 +129,26 @@ export function recordDeletedTransactionIds(txIds: string[]) {
     for (const id of txIds) ids.add(id);
     const arr = Array.from(ids).slice(-300);
     localStorage.setItem(DELETED_TXS_KEY, JSON.stringify(arr));
+  } catch (e) {}
+}
+
+export function getDeletedContactIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(DELETED_CONTACTS_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return new Set(arr);
+    }
+  } catch (e) {}
+  return new Set();
+}
+
+export function recordDeletedContactId(contactId: string) {
+  try {
+    const ids = getDeletedContactIds();
+    ids.add(contactId);
+    const arr = Array.from(ids).slice(-300);
+    localStorage.setItem(DELETED_CONTACTS_KEY, JSON.stringify(arr));
   } catch (e) {}
 }
 
@@ -428,6 +449,91 @@ const INITIAL_DATA: AppDatabase = {
       category: 'general',
     },
   ],
+  contacts: [
+    {
+      id: 'contact-1',
+      name: 'Engr. Mahbubur Rahman',
+      phone: '01712345678',
+      email: 'mahbub.ce@gmail.com',
+      organization: 'Metro Rail Subcontractor Consortium',
+      designation: 'Chief Structural Consultant',
+      category: 'consultant',
+      address: 'Agargaon, Dhaka',
+      notes: 'Consultant for Metro Rail package foundation testing and pile integrity.',
+      associateId: 'assoc-1',
+      associateName: 'Engr. Tanvir Ahmed',
+      createdAt: '2026-03-10T10:00:00Z',
+    },
+    {
+      id: 'contact-2',
+      name: 'Mohammad Rafiqul Islam',
+      phone: '01819876543',
+      email: 'rafiq.builders@yahoo.com',
+      organization: 'Delta Construction & Piling Ltd.',
+      designation: 'Managing Director / Contractor',
+      category: 'contractor',
+      address: 'Agrabad C/A, Chattogram',
+      notes: 'Deep piling, bentonite slurry boring, and casting contractor.',
+      associateId: 'assoc-3',
+      associateName: 'Engr. Rakibul Hasan',
+      createdAt: '2026-03-12T14:30:00Z',
+    },
+    {
+      id: 'contact-3',
+      name: 'Ar. Shamsul Alam',
+      phone: '01678112233',
+      email: 'shamsul.studio@architects.net',
+      organization: 'Alam & Partners Design Studio',
+      designation: 'Lead Architect',
+      category: 'engineer',
+      address: 'Gulshan 2, Dhaka',
+      notes: 'Architectural drawings and building clearance consultant.',
+      associateId: 'assoc-4',
+      associateName: 'Ar. Farhana Kabir',
+      createdAt: '2026-03-14T09:15:00Z',
+    },
+    {
+      id: 'contact-4',
+      name: 'Al-Haj Kabir Uddin',
+      phone: '01912445566',
+      email: 'kabir.steel@gmail.com',
+      organization: 'BSRM & AKS Steel Distribution Depot',
+      designation: 'Authorized Rebar Vendor',
+      category: 'vendor',
+      address: 'Tejgaon Industrial Area, Dhaka',
+      notes: '500W grade rebar and high-tensile cement supplier for residential sites.',
+      associateId: 'assoc-2',
+      associateName: 'Engr. Nadia Sultana',
+      createdAt: '2026-03-15T11:20:00Z',
+    },
+    {
+      id: 'contact-5',
+      name: 'Kazi Nazmul Huda',
+      phone: '01711559988',
+      email: 'nazmul.huda@rajuk.gov.bd',
+      organization: 'City Development & Planning Authority',
+      designation: 'Assistant Town Planner / Municipal Official',
+      category: 'official',
+      address: 'RAJUK Bhaban, Motijheel, Dhaka',
+      notes: 'Building plan approval, occupancy certificates, and fire safety clearances.',
+      associateId: 'assoc-1',
+      associateName: 'Engr. Tanvir Ahmed',
+      createdAt: '2026-03-16T16:00:00Z',
+    },
+  ],
+  balanceTransfers: [
+    {
+      id: 'xfer-init-1',
+      senderId: 'assoc-1',
+      senderName: 'Engr. Tanvir Ahmed',
+      receiverId: 'assoc-2',
+      receiverName: 'Engr. Nadia Sultana',
+      amount: 500,
+      date: '2026-03-19',
+      note: 'Site visit fuel & joint testing fee contribution',
+      status: 'completed',
+    },
+  ],
 };
 
 /**
@@ -439,7 +545,8 @@ export function mergeDatabases(
   deletedMsgId?: string,
   deletedAssocId?: string,
   deletedClientId?: string,
-  deletedTxId?: string | string[]
+  deletedTxId?: string | string[],
+  deletedContactId?: string
 ): AppDatabase {
   if (!localDb) return remoteDb || INITIAL_DATA;
   if (!remoteDb) return localDb || INITIAL_DATA;
@@ -569,6 +676,39 @@ export function mergeDatabases(
       new Date(a.timestamp || 0).getTime() - new Date(b.timestamp || 0).getTime()
   );
 
+  // 6. Merge contacts (union by id)
+  const contactMap = new Map<string, any>();
+  for (const c of (localDb.contacts || [])) {
+    if (c && c.id) contactMap.set(c.id, c);
+  }
+  for (const c of (remoteDb.contacts || [])) {
+    if (c && c.id) {
+      const existing = contactMap.get(c.id);
+      contactMap.set(c.id, existing ? { ...existing, ...c } : c);
+    }
+  }
+
+  if (deletedContactId) {
+    recordDeletedContactId(deletedContactId);
+    contactMap.delete(deletedContactId);
+  }
+  const deletedContactIds = getDeletedContactIds();
+  for (const delId of deletedContactIds) {
+    contactMap.delete(delId);
+  }
+
+  // 7. Merge balance transfers (union by id)
+  const transferMap = new Map<string, any>();
+  for (const x of (localDb.balanceTransfers || [])) {
+    if (x && x.id) transferMap.set(x.id, x);
+  }
+  for (const x of (remoteDb.balanceTransfers || [])) {
+    if (x && x.id) {
+      const existing = transferMap.get(x.id);
+      transferMap.set(x.id, existing ? { ...existing, ...x } : x);
+    }
+  }
+
   return {
     admin: remoteDb.admin || localDb.admin || INITIAL_DATA.admin,
     associates: Array.from(associateMap.values()),
@@ -576,6 +716,8 @@ export function mergeDatabases(
     transactions: Array.from(txMap.values()),
     payments: Array.from(payMap.values()),
     messages: mergedMessages,
+    contacts: Array.from(contactMap.values()),
+    balanceTransfers: Array.from(transferMap.values()),
   };
 }
 
@@ -588,7 +730,13 @@ export function loadDatabase(): AppDatabase {
         if (!Array.isArray(parsed.messages)) {
           parsed.messages = INITIAL_DATA.messages || [];
         }
-        // Filter out any deleted associates/clients/messages/transactions
+        if (!Array.isArray(parsed.contacts)) {
+          parsed.contacts = INITIAL_DATA.contacts || [];
+        }
+        if (!Array.isArray(parsed.balanceTransfers)) {
+          parsed.balanceTransfers = INITIAL_DATA.balanceTransfers || [];
+        }
+        // Filter out any deleted associates/clients/messages/transactions/contacts
         const deletedAssocIds = getDeletedAssociateIds();
         if (deletedAssocIds.size > 0) {
           parsed.associates = parsed.associates.filter((a: any) => a && !deletedAssocIds.has(a.id));
@@ -604,6 +752,10 @@ export function loadDatabase(): AppDatabase {
         const deletedMsgIds = getDeletedMessageIds();
         if (deletedMsgIds.size > 0) {
           parsed.messages = (parsed.messages || []).filter((m: any) => m && !deletedMsgIds.has(m.id));
+        }
+        const deletedContactIds = getDeletedContactIds();
+        if (deletedContactIds.size > 0) {
+          parsed.contacts = (parsed.contacts || []).filter((c: any) => c && !deletedContactIds.has(c.id));
         }
         return parsed;
       }
@@ -634,6 +786,7 @@ export async function fetchAuthoritativeDatabase(forcePull: boolean = false): Pr
         const deletedClients = getDeletedClientIds();
         const deletedTxs = getDeletedTransactionIds();
         const deletedMsgs = getDeletedMessageIds();
+        const deletedContactIds = getDeletedContactIds();
 
         if (deletedAssocs.size > 0 && Array.isArray(sbResult.data.associates)) {
           sbResult.data.associates = sbResult.data.associates.filter((a: any) => a && !deletedAssocs.has(a.id));
@@ -646,6 +799,9 @@ export async function fetchAuthoritativeDatabase(forcePull: boolean = false): Pr
         }
         if (deletedMsgs.size > 0 && Array.isArray(sbResult.data.messages)) {
           sbResult.data.messages = sbResult.data.messages.filter((m: any) => m && !deletedMsgs.has(m.id));
+        }
+        if (deletedContactIds.size > 0 && Array.isArray(sbResult.data.contacts)) {
+          sbResult.data.contacts = sbResult.data.contacts.filter((c: any) => c && !deletedContactIds.has(c.id));
         }
 
         try {
@@ -694,11 +850,18 @@ export async function fetchAuthoritativeDatabase(forcePull: boolean = false): Pr
         if (!Array.isArray(json.data.payments)) {
           json.data.payments = [];
         }
+        if (!Array.isArray(json.data.contacts)) {
+          json.data.contacts = INITIAL_DATA.contacts || [];
+        }
+        if (!Array.isArray(json.data.balanceTransfers)) {
+          json.data.balanceTransfers = INITIAL_DATA.balanceTransfers || [];
+        }
 
         const deletedAssocs = getDeletedAssociateIds();
         const deletedClients = getDeletedClientIds();
         const deletedTxs = getDeletedTransactionIds();
         const deletedMsgs = getDeletedMessageIds();
+        const deletedContactIds = getDeletedContactIds();
 
         const authoritativeData: AppDatabase = {
           admin: json.data.admin || INITIAL_DATA.admin,
@@ -715,6 +878,10 @@ export async function fetchAuthoritativeDatabase(forcePull: boolean = false): Pr
           messages: (Array.isArray(json.data.messages) ? json.data.messages : []).filter(
             (m: any) => m && !deletedMsgs.has(m.id)
           ),
+          contacts: (Array.isArray(json.data.contacts) ? json.data.contacts : []).filter(
+            (c: any) => c && !deletedContactIds.has(c.id)
+          ),
+          balanceTransfers: Array.isArray(json.data.balanceTransfers) ? json.data.balanceTransfers : [],
         };
 
         try {
@@ -758,6 +925,9 @@ export async function saveDatabase(
   const deleteClientMatch = typeof commitMessage === 'string' && commitMessage.match(/Delete client ([a-zA-Z0-9_-]+)/);
   const deletedClientId = deleteClientMatch ? deleteClientMatch[1] : undefined;
 
+  const deleteContactMatch = typeof commitMessage === 'string' && commitMessage.match(/Delete contact ([a-zA-Z0-9_-]+)/);
+  const deletedContactId = deleteContactMatch ? deleteContactMatch[1] : undefined;
+
   const deleteTxMatch = typeof commitMessage === 'string' && commitMessage.match(/Delete transaction ([a-zA-Z0-9_-]+)/);
   const singleTxId = deleteTxMatch ? deleteTxMatch[1] : undefined;
 
@@ -770,6 +940,7 @@ export async function saveDatabase(
   if (deletedClientId) recordDeletedClientId(deletedClientId);
   if (deletedMsgId) recordDeletedMessageId(deletedMsgId);
   if (deletedTxIds) recordDeletedTransactionIds(deletedTxIds);
+  if (deletedContactId) recordDeletedContactId(deletedContactId);
 
   // 1. Instant local cache update so UI is immediately responsive
   try {
@@ -802,6 +973,7 @@ export async function saveDatabase(
         deletedClientId,
         deletedMsgId,
         deletedTxIds,
+        deletedContactId,
         owner: config?.owner || 'hybridcivil',
         repo: config?.repo || 'associate',
         branch: config?.branch || 'main',
@@ -825,7 +997,8 @@ export async function saveDatabase(
           deletedMsgId,
           deletedAssocId,
           deletedClientId,
-          deletedTxIds
+          deletedTxIds,
+          deletedContactId
         );
         try {
           localStorage.setItem(STORAGE_KEY, JSON.stringify(finalMergedData));

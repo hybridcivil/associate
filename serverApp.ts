@@ -198,6 +198,27 @@ ${clients
     } catch {}
   };
 
+  const DELETED_CONTACTS_FILE = path.join(process.cwd(), "data", "deleted_contacts.json");
+  const getServerDeletedContactIds = (): Set<string> => {
+    try {
+      if (fs.existsSync(DELETED_CONTACTS_FILE)) {
+        const raw = fs.readFileSync(DELETED_CONTACTS_FILE, "utf-8");
+        const arr = JSON.parse(raw);
+        if (Array.isArray(arr)) return new Set(arr);
+      }
+    } catch {}
+    return new Set();
+  };
+
+  const recordServerDeletedContactId = (id: string) => {
+    try {
+      const set = getServerDeletedContactIds();
+      set.add(id);
+      fs.mkdirSync(path.dirname(DELETED_CONTACTS_FILE), { recursive: true });
+      fs.writeFileSync(DELETED_CONTACTS_FILE, JSON.stringify(Array.from(set).slice(-300)), "utf-8");
+    } catch {}
+  };
+
   // Helper to merge databases non-destructively so NO messages or records are ever lost
   const mergeDatabases = (
     localDb: any,
@@ -205,7 +226,8 @@ ${clients
     deletedMsgId?: string,
     deletedAssocId?: string,
     deletedClientId?: string,
-    deletedTxId?: string | string[]
+    deletedTxId?: string | string[],
+    deletedContactId?: string
   ): any => {
     if (!localDb) return incomingDb || {};
     if (!incomingDb) return localDb || {};
@@ -324,6 +346,39 @@ ${clients
         new Date(a.timestamp || 0).getTime() - new Date(b.timestamp || 0).getTime()
     );
 
+    // 6. Merge contacts
+    const contactMap = new Map<string, any>();
+    for (const c of (localDb.contacts || [])) {
+      if (c && c.id) contactMap.set(c.id, c);
+    }
+    for (const c of (incomingDb.contacts || [])) {
+      if (c && c.id) {
+        const existing = contactMap.get(c.id);
+        contactMap.set(c.id, existing ? { ...existing, ...c } : c);
+      }
+    }
+
+    if (deletedContactId) {
+      recordServerDeletedContactId(deletedContactId);
+      contactMap.delete(deletedContactId);
+    }
+    const serverDelContacts = getServerDeletedContactIds();
+    for (const delId of serverDelContacts) {
+      contactMap.delete(delId);
+    }
+
+    // 7. Merge balance transfers
+    const transferMap = new Map<string, any>();
+    for (const x of (localDb.balanceTransfers || [])) {
+      if (x && x.id) transferMap.set(x.id, x);
+    }
+    for (const x of (incomingDb.balanceTransfers || [])) {
+      if (x && x.id) {
+        const existing = transferMap.get(x.id);
+        transferMap.set(x.id, existing ? { ...existing, ...x } : x);
+      }
+    }
+
     return {
       admin: incomingDb.admin || localDb.admin || { username: "admin", password: "admin123" },
       associates: Array.from(associateMap.values()),
@@ -331,6 +386,8 @@ ${clients
       transactions: Array.from(txMap.values()),
       payments: Array.from(payMap.values()),
       messages: mergedMessages,
+      contacts: Array.from(contactMap.values()),
+      balanceTransfers: Array.from(transferMap.values()),
     };
   };
 
@@ -762,6 +819,10 @@ ${clients
           if (delTxs.size > 0 && Array.isArray(localDb.transactions)) {
             localDb.transactions = localDb.transactions.filter((t: any) => t && !delTxs.has(t.id));
           }
+          const delContacts = getServerDeletedContactIds();
+          if (delContacts.size > 0 && Array.isArray(localDb.contacts)) {
+            localDb.contacts = localDb.contacts.filter((c: any) => c && !delContacts.has(c.id));
+          }
         } catch (e) {}
       }
 
@@ -878,6 +939,9 @@ ${clients
       const deleteClientMatch = typeof message === "string" && message.match(/Delete client ([a-zA-Z0-9_-]+)/);
       const deletedClientId = deleteClientMatch ? deleteClientMatch[1] : req.body.deletedClientId;
 
+      const deleteContactMatch = typeof message === "string" && message.match(/Delete contact ([a-zA-Z0-9_-]+)/);
+      const deletedContactId = deleteContactMatch ? deleteContactMatch[1] : req.body.deletedContactId;
+
       const deleteTxMatch = typeof message === "string" && message.match(/Delete transaction ([a-zA-Z0-9_-]+)/);
       const singleTxId = deleteTxMatch ? deleteTxMatch[1] : undefined;
 
@@ -888,6 +952,7 @@ ${clients
 
       if (deletedAssocId) recordServerDeletedAssocId(deletedAssocId);
       if (deletedClientId) recordServerDeletedClientId(deletedClientId);
+      if (deletedContactId) recordServerDeletedContactId(deletedContactId);
       if (deletedTxIds) recordServerDeletedTxIds(Array.isArray(deletedTxIds) ? deletedTxIds : [deletedTxIds]);
 
       // Step 1: Read latest from Supabase if configured
@@ -903,9 +968,9 @@ ${clients
 
       // Step 2: Merge the incoming database non-destructively
       const baseDb = remoteDb || currentLocalDb;
-      let mergedDb = mergeDatabases(baseDb, data, deletedMsgId, deletedAssocId, deletedClientId, deletedTxIds);
+      let mergedDb = mergeDatabases(baseDb, data, deletedMsgId, deletedAssocId, deletedClientId, deletedTxIds, deletedContactId);
       if (currentLocalDb && baseDb !== currentLocalDb) {
-        mergedDb = mergeDatabases(mergedDb, currentLocalDb, deletedMsgId, deletedAssocId, deletedClientId, deletedTxIds);
+        mergedDb = mergeDatabases(mergedDb, currentLocalDb, deletedMsgId, deletedAssocId, deletedClientId, deletedTxIds, deletedContactId);
       }
 
       // Sanitize and validate merged database structure
@@ -922,6 +987,10 @@ ${clients
         const delSet = new Set(Array.isArray(deletedTxIds) ? deletedTxIds : [deletedTxIds]);
         validatedTransactions = validatedTransactions.filter((t: any) => t && !delSet.has(t.id));
       }
+      let validatedContacts = Array.isArray(mergedDb.contacts) ? mergedDb.contacts : [];
+      if (deletedContactId) {
+        validatedContacts = validatedContacts.filter((c: any) => c && c.id !== deletedContactId);
+      }
 
       const validatedDb = {
         admin: mergedDb.admin || { username: "admin", password: "admin123" },
@@ -930,6 +999,8 @@ ${clients
         transactions: validatedTransactions,
         payments: Array.isArray(mergedDb.payments) ? mergedDb.payments : [],
         messages: Array.isArray(mergedDb.messages) ? mergedDb.messages : [],
+        contacts: validatedContacts,
+        balanceTransfers: Array.isArray(mergedDb.balanceTransfers) ? mergedDb.balanceTransfers : [],
       };
 
       // Step 3: Write the merged database locally

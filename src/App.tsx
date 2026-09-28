@@ -21,6 +21,8 @@ import { ProfitEntryView } from './components/ProfitEntryView';
 import { TransactionsView } from './components/TransactionsView';
 import { MyProfileView } from './components/MyProfileView';
 import { MessagesView } from './components/MessagesView';
+import { ContactsView } from './components/ContactsView';
+import { TransfersView } from './components/TransfersView';
 import { SupabaseDatabaseView } from './components/SupabaseDatabaseView';
 import { LoginModal } from './components/LoginModal';
 import { SyncSettingsModal } from './components/SyncSettingsModal';
@@ -180,6 +182,9 @@ export default function App() {
     const deleteClientMatch = typeof commitMsg === 'string' && commitMsg.match(/Delete client ([a-zA-Z0-9_-]+)/);
     const deletedClientId = deleteClientMatch ? deleteClientMatch[1] : undefined;
 
+    const deleteContactMatch = typeof commitMsg === 'string' && commitMsg.match(/Delete contact ([a-zA-Z0-9_-]+)/);
+    const deletedContactId = deleteContactMatch ? deleteContactMatch[1] : undefined;
+
     const deleteTxMatch = typeof commitMsg === 'string' && commitMsg.match(/Delete transaction ([a-zA-Z0-9_-]+)/);
     const singleTxId = deleteTxMatch ? deleteTxMatch[1] : undefined;
 
@@ -194,7 +199,8 @@ export default function App() {
       deletedMsgId,
       deletedAssocId,
       deletedClientId,
-      deletedTxIds
+      deletedTxIds,
+      deletedContactId
     );
 
     lastLocalSaveTimeRef.current = Date.now();
@@ -217,7 +223,8 @@ export default function App() {
           deletedMsgId,
           deletedAssocId,
           deletedClientId,
-          deletedTxIds
+          deletedTxIds,
+          deletedContactId
         );
         setDb(finalMerged);
         dbRef.current = finalMerged;
@@ -333,6 +340,10 @@ export default function App() {
               <ClientsView db={db} onUpdateDb={handleUpdateDb} />
             )}
 
+            {currentTab === 'contacts' && (
+              <ContactsView db={db} session={session} onUpdateDb={handleUpdateDb} />
+            )}
+
             {currentTab === 'profit' && session.role === 'admin' && (
               <ProfitEntryView
                 db={db}
@@ -343,6 +354,14 @@ export default function App() {
 
             {currentTab === 'transactions' && (
               <TransactionsView
+                db={db}
+                session={session}
+                onUpdateDb={handleUpdateDb}
+              />
+            )}
+
+            {currentTab === 'transfers' && (
+              <TransfersView
                 db={db}
                 session={session}
                 onUpdateDb={handleUpdateDb}
