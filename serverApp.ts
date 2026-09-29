@@ -1270,6 +1270,14 @@ ${clients
       const { data, mode = "factory_default" } = req.body;
       const dbFilePath = path.join(process.cwd(), "data", "hybrid_civil_database.json");
 
+      let currentLocalDb: any = null;
+      if (fs.existsSync(dbFilePath)) {
+        try {
+          const fileContent = await fs.promises.readFile(dbFilePath, "utf-8");
+          currentLocalDb = JSON.parse(fileContent);
+        } catch (e) {}
+      }
+
       let finalDb: any;
       if (data && typeof data === "object") {
         finalDb = {

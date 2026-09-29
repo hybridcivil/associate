@@ -5,21 +5,39 @@
   },
   "associates": [
     {
-      "id": "assoc-3",
-      "name": "Engr. Rakibul Hasan",
-      "phone": "01933000333",
-      "password": "assoc123",
-      "email": "rakibul@hybridcivil.net",
-      "address": "Agrabad, Chattogram",
-      "status": "active"
-    },
-    {
       "id": "assoc-mujji1fbp8pzj8",
       "name": "Arefin",
       "phone": "+880 1911-605771",
       "password": "1",
       "email": "arefin@gmail.com",
       "address": "Nirala, Shariatpur",
+      "status": "active"
+    },
+    {
+      "id": "assoc-mul3hktxgydoqo",
+      "name": "Habibur Rahman",
+      "phone": "01913565830",
+      "password": "1",
+      "email": "habibur@gmail.com",
+      "address": "Gulmaiz, Shariatpur",
+      "status": "active"
+    },
+    {
+      "id": "assoc-mumcndfvu8fh9x",
+      "name": "Md Evon",
+      "phone": "01349994763",
+      "password": "1",
+      "email": "evonwork4@gmail.com",
+      "address": "Rajshahi",
+      "status": "active"
+    },
+    {
+      "id": "assoc-3",
+      "name": "Engr. Rakibul Hasan",
+      "phone": "01933000333",
+      "password": "assoc123",
+      "email": "rakibul@hybridcivil.net",
+      "address": "Agrabad, Chattogram",
       "status": "active"
     },
     {
@@ -99,9 +117,30 @@
       "advance": 50,
       "associateId": "assoc-1",
       "date": "2026-09-22"
+    },
+    {
+      "id": "client-mul3z5pmfiolny",
+      "name": "Mamun",
+      "phone": "01705615653",
+      "project": "G+2 storied Residential Building Structural Design",
+      "price": 10000,
+      "advance": 0,
+      "associateId": "assoc-mul3hktxgydoqo",
+      "date": "2026-09-28"
     }
   ],
   "transactions": [
+    {
+      "id": "tx-mumd2n9y4uv5vi",
+      "date": "2026-09-29",
+      "clientId": "p2p-transfer",
+      "associateId": "assoc-mul3hktxgydoqo",
+      "shareType": "Transfer from Md Evon",
+      "amount": 128,
+      "profit": 0,
+      "kind": "held",
+      "distributionId": "xfer-mumd2n9y9aonl1"
+    },
     {
       "id": "tx-5",
       "date": "2026-03-16",
@@ -167,6 +206,114 @@
       "distributionId": "tx-1"
     },
     {
+      "id": "tx-4",
+      "date": "2026-03-12",
+      "clientId": "client-1",
+      "associateId": "assoc-4",
+      "shareType": "Equal distribution 5% pool",
+      "amount": 1500,
+      "profit": 90000,
+      "kind": "equal",
+      "distributionId": "tx-1"
+    },
+    {
+      "id": "tx-mul3zx91fpzica",
+      "date": "2026-09-28",
+      "clientId": "client-mul3z5pmfiolny",
+      "associateId": "assoc-mul3hktxgydoqo",
+      "shareType": "Selected associate 5%",
+      "amount": 150,
+      "profit": 3000,
+      "kind": "referral"
+    },
+    {
+      "id": "tx-mul3zx91vzrmaf",
+      "date": "2026-09-28",
+      "clientId": "client-mul3z5pmfiolny",
+      "associateId": "assoc-mujji1fbp8pzj8",
+      "shareType": "Equal distribution 5% pool",
+      "amount": 150,
+      "profit": 3000,
+      "kind": "equal",
+      "distributionId": "tx-mul3zx91fpzica"
+    },
+    {
+      "id": "tx-mul8p4ossdcti2",
+      "date": "2026-09-28",
+      "clientId": "p2p-transfer",
+      "associateId": "assoc-mujji1fbp8pzj8",
+      "shareType": "Transfer from Habibur Rahman",
+      "amount": 1,
+      "profit": 0,
+      "kind": "held",
+      "distributionId": "xfer-mul8p4osz1itu4"
+    },
+    {
+      "id": "tx-mul9dguls6p4sr",
+      "date": "2026-09-28",
+      "clientId": "p2p-transfer",
+      "associateId": "assoc-mul3hktxgydoqo",
+      "shareType": "Transfer from Arefin",
+      "amount": 1,
+      "profit": 0,
+      "kind": "held",
+      "distributionId": "xfer-mul9dgulptcmnz"
+    },
+    {
+      "id": "tx-mumcrqxrdtlnti",
+      "date": "2026-09-29",
+      "clientId": "p2p-transfer",
+      "associateId": "assoc-mumcndfvu8fh9x",
+      "shareType": "Transfer from Arefin",
+      "amount": 1,
+      "profit": 0,
+      "kind": "held",
+      "distributionId": "xfer-mumcrqxrrjukqu"
+    },
+    {
+      "id": "tx-mumcvhvpf14alw",
+      "date": "2026-09-29",
+      "clientId": "p2p-transfer",
+      "associateId": "assoc-mumcndfvu8fh9x",
+      "shareType": "Transfer from Habibur Rahman",
+      "amount": 1,
+      "profit": 0,
+      "kind": "held",
+      "distributionId": "xfer-mumcvhvpkzng9f"
+    },
+    {
+      "id": "tx-mumd1ve81lx7fz",
+      "date": "2026-09-29",
+      "clientId": "client-mul3z5pmfiolny",
+      "associateId": "assoc-mul3hktxgydoqo",
+      "shareType": "Selected associate 5%",
+      "amount": 250,
+      "profit": 5000,
+      "kind": "referral"
+    },
+    {
+      "id": "tx-mumd1ve8h48avw",
+      "date": "2026-09-29",
+      "clientId": "client-mul3z5pmfiolny",
+      "associateId": "assoc-mujji1fbp8pzj8",
+      "shareType": "Equal distribution 5% pool",
+      "amount": 125,
+      "profit": 5000,
+      "kind": "equal",
+      "distributionId": "tx-mumd1ve81lx7fz"
+    },
+    {
+      "id": "tx-mumd1ve8lu9lzl",
+      "date": "2026-09-29",
+      "clientId": "client-mul3z5pmfiolny",
+      "associateId": "assoc-mumcndfvu8fh9x",
+      "shareType": "Equal distribution 5% pool",
+      "amount": 125,
+      "profit": 5000,
+      "kind": "equal",
+      "distributionId": "tx-mumd1ve81lx7fz"
+    },
+    {
       "id": "tx-3",
       "date": "2026-03-12",
       "clientId": "client-1",
@@ -178,18 +325,59 @@
       "distributionId": "tx-1"
     },
     {
-      "id": "tx-4",
-      "date": "2026-03-12",
-      "clientId": "client-1",
-      "associateId": "assoc-4",
+      "id": "tx-mumctth1d9n9ex",
+      "date": "2026-09-29",
+      "clientId": "p2p-transfer",
+      "associateId": "assoc-mumcndfvu8fh9x",
+      "shareType": "Transfer from Arefin",
+      "amount": 1,
+      "profit": 0,
+      "kind": "held",
+      "distributionId": "xfer-mumctth1i1rfhl"
+    },
+    {
+      "id": "tx-mulm178epc5a6b",
+      "date": "2026-09-28",
+      "clientId": "client-mul3z5pmfiolny",
+      "associateId": "assoc-mul3hktxgydoqo",
+      "shareType": "Selected associate 5%",
+      "amount": 50,
+      "profit": 1000,
+      "kind": "referral"
+    },
+    {
+      "id": "tx-mulm178erruvzm",
+      "date": "2026-09-28",
+      "clientId": "client-mul3z5pmfiolny",
+      "associateId": "assoc-mujji1fbp8pzj8",
       "shareType": "Equal distribution 5% pool",
-      "amount": 1500,
-      "profit": 90000,
+      "amount": 50,
+      "profit": 1000,
       "kind": "equal",
-      "distributionId": "tx-1"
+      "distributionId": "tx-mulm178epc5a6b"
     }
   ],
   "payments": [
+    {
+      "id": "pay-mumcvhvpbzw1l0",
+      "associateId": "assoc-mul3hktxgydoqo",
+      "date": "2026-09-29",
+      "amount": 1,
+      "parts": {},
+      "allocations": [
+        "P2P Transfer to Md Evon (Ref: xfer-mumcvhvpkzng9f)"
+      ]
+    },
+    {
+      "id": "pay-mumd2n9y8ogc4a",
+      "associateId": "assoc-mumcndfvu8fh9x",
+      "date": "2026-09-29",
+      "amount": 128,
+      "parts": {},
+      "allocations": [
+        "P2P Transfer to Habibur Rahman (Ref: xfer-mumd2n9y9aonl1)"
+      ]
+    },
     {
       "id": "pay-1",
       "associateId": "assoc-1",
@@ -214,6 +402,58 @@
       "allocations": [
         "tx-2",
         "tx-5"
+      ]
+    },
+    {
+      "id": "pay-mul45t62y2x5kk",
+      "associateId": "assoc-mul3hktxgydoqo",
+      "date": "2026-09-28",
+      "amount": 100,
+      "parts": {
+        "tx-mul3zx91fpzica": 100
+      },
+      "allocations": [
+        "tx-mul3zx91fpzica"
+      ]
+    },
+    {
+      "id": "pay-mul8p4osz1pn3o",
+      "associateId": "assoc-mul3hktxgydoqo",
+      "date": "2026-09-28",
+      "amount": 1,
+      "parts": {},
+      "allocations": [
+        "P2P Transfer to Arefin (Ref: xfer-mul8p4osz1itu4)"
+      ]
+    },
+    {
+      "id": "pay-mul9dgulex61ui",
+      "associateId": "assoc-mujji1fbp8pzj8",
+      "date": "2026-09-28",
+      "amount": 1,
+      "parts": {},
+      "allocations": [
+        "P2P Transfer to Habibur Rahman (Ref: xfer-mul9dgulptcmnz)"
+      ]
+    },
+    {
+      "id": "pay-mumcrqxrhq702y",
+      "associateId": "assoc-mujji1fbp8pzj8",
+      "date": "2026-09-29",
+      "amount": 1,
+      "parts": {},
+      "allocations": [
+        "P2P Transfer to Md Evon (Ref: xfer-mumcrqxrrjukqu)"
+      ]
+    },
+    {
+      "id": "pay-mumctth1k8k6k0",
+      "associateId": "assoc-mujji1fbp8pzj8",
+      "date": "2026-09-29",
+      "amount": 1,
+      "parts": {},
+      "allocations": [
+        "P2P Transfer to Md Evon (Ref: xfer-mumctth1i1rfhl)"
       ]
     }
   ],
@@ -940,6 +1180,238 @@
       "priority": "normal",
       "category": "general",
       "isEdited": false
+    },
+    {
+      "id": "msg-muke2kze84qsll",
+      "senderRole": "admin",
+      "senderId": "admin",
+      "senderName": "Administrator",
+      "receiverId": "assoc-mujji1fbp8pzj8",
+      "receiverName": "Arefin",
+      "associateId": "assoc-mujji1fbp8pzj8",
+      "content": "hi",
+      "timestamp": "2026-09-27T22:27:18.842Z",
+      "read": true,
+      "priority": "normal",
+      "category": "general",
+      "isEdited": false
+    },
+    {
+      "id": "msg-mul3v3qivn3wlp",
+      "senderRole": "admin",
+      "senderId": "admin",
+      "senderName": "Administrator",
+      "receiverId": "assoc-mul3hktxgydoqo",
+      "receiverName": "Habibur Rahman",
+      "associateId": "assoc-mul3hktxgydoqo",
+      "content": "fine thks",
+      "timestamp": "2026-09-28T10:29:19.914Z",
+      "read": true,
+      "priority": "normal",
+      "category": "general",
+      "isEdited": false
+    },
+    {
+      "id": "msg-mul3wvl50crz2n",
+      "senderRole": "admin",
+      "senderId": "admin",
+      "senderName": "Administrator",
+      "receiverId": "assoc-mul3hktxgydoqo",
+      "receiverName": "Habibur Rahman",
+      "associateId": "assoc-mul3hktxgydoqo",
+      "content": "yes",
+      "timestamp": "2026-09-28T10:30:42.665Z",
+      "read": true,
+      "priority": "normal",
+      "category": "general",
+      "isEdited": false
+    },
+    {
+      "id": "msg-mul44nxvjy7vtl",
+      "senderRole": "admin",
+      "senderId": "admin",
+      "senderName": "Administrator",
+      "receiverId": "assoc-mul3hktxgydoqo",
+      "receiverName": "Habibur Rahman",
+      "associateId": "assoc-mul3hktxgydoqo",
+      "content": "ok",
+      "timestamp": "2026-09-28T10:36:46.003Z",
+      "read": true,
+      "priority": "normal",
+      "category": "general",
+      "isEdited": false
+    },
+    {
+      "id": "msg-mul4793vkegmsj",
+      "senderRole": "associate",
+      "senderId": "assoc-mul3hktxgydoqo",
+      "senderName": "Habibur Rahman",
+      "receiverId": "admin",
+      "receiverName": "Administrator",
+      "associateId": "assoc-mul3hktxgydoqo",
+      "content": "Hi. Bro how r u.",
+      "timestamp": "2026-09-28T10:38:46.747Z",
+      "read": true,
+      "priority": "normal",
+      "category": "general",
+      "isEdited": false
+    },
+    {
+      "id": "msg-mul48igssrj7ag",
+      "senderRole": "associate",
+      "senderId": "assoc-mul3hktxgydoqo",
+      "senderName": "Habibur Rahman",
+      "receiverId": "admin",
+      "receiverName": "Administrator",
+      "associateId": "assoc-mul3hktxgydoqo",
+      "content": "Do you fill better now.",
+      "timestamp": "2026-09-28T10:39:45.532Z",
+      "read": true,
+      "priority": "normal",
+      "category": "general",
+      "isEdited": false
+    },
+    {
+      "id": "msg-mul4gvhk1gn17p",
+      "senderRole": "associate",
+      "senderId": "assoc-mul3hktxgydoqo",
+      "senderName": "Habibur Rahman",
+      "receiverId": "admin",
+      "receiverName": "Administrator",
+      "associateId": "assoc-mul3hktxgydoqo",
+      "content": "Vai pls send me my payment",
+      "timestamp": "2026-09-28T10:46:15.656Z",
+      "read": true,
+      "priority": "normal",
+      "category": "general",
+      "isEdited": false
+    },
+    {
+      "id": "msg-mul8p4ospg5yv6",
+      "senderRole": "associate",
+      "senderId": "assoc-mul3hktxgydoqo",
+      "senderName": "Habibur Rahman",
+      "receiverId": "assoc-mujji1fbp8pzj8",
+      "receiverName": "Arefin",
+      "associateId": "assoc-mujji1fbp8pzj8",
+      "subject": "💸 Balance Transfer Received: ৳1.00",
+      "content": "Assalamu Alaikum Arefin,\n\nI have transferred ৳1.00 to your account ledger.\n\nReference: Peer-to-peer associate balance transfer\nDate: 2026-09-28\nTransfer ID: xfer-mul8p4osz1itu4",
+      "timestamp": "2026-09-28T12:44:39.292Z",
+      "read": true,
+      "priority": "normal",
+      "category": "payment",
+      "isEdited": false
+    },
+    {
+      "id": "msg-mul9dgump5buo0",
+      "senderRole": "associate",
+      "senderId": "assoc-mujji1fbp8pzj8",
+      "senderName": "Arefin",
+      "receiverId": "assoc-mul3hktxgydoqo",
+      "receiverName": "Habibur Rahman",
+      "associateId": "assoc-mul3hktxgydoqo",
+      "subject": "💸 Balance Transfer Received: ৳1.00",
+      "content": "Assalamu Alaikum Habibur Rahman,\n\nI have transferred ৳1.00 to your account ledger.\n\nReference: Peer-to-peer associate balance transfer\nDate: 2026-09-28\nTransfer ID: xfer-mul9dgulptcmnz",
+      "timestamp": "2026-09-28T13:03:34.798Z",
+      "read": true,
+      "priority": "normal",
+      "category": "payment",
+      "isEdited": false
+    },
+    {
+      "id": "msg-mumcrqxr2c6o13",
+      "senderRole": "associate",
+      "senderId": "assoc-mujji1fbp8pzj8",
+      "senderName": "Arefin",
+      "receiverId": "assoc-mumcndfvu8fh9x",
+      "receiverName": "Md Evon",
+      "associateId": "assoc-mumcndfvu8fh9x",
+      "subject": "💸 Balance Transfer Received: ৳1.00",
+      "content": "Assalamu Alaikum Md Evon,\n\nI have transferred ৳1.00 to your account ledger.\n\nReference: Peer-to-peer associate balance transfer\nDate: 2026-09-29\nTransfer ID: xfer-mumcrqxrrjukqu",
+      "timestamp": "2026-09-29T07:26:26.080Z",
+      "read": true,
+      "priority": "normal",
+      "category": "payment",
+      "isEdited": false
+    },
+    {
+      "id": "msg-mumctth1txfm13",
+      "senderRole": "associate",
+      "senderId": "assoc-mujji1fbp8pzj8",
+      "senderName": "Arefin",
+      "receiverId": "assoc-mumcndfvu8fh9x",
+      "receiverName": "Md Evon",
+      "associateId": "assoc-mumcndfvu8fh9x",
+      "subject": "💸 Balance Transfer Received: ৳1.00",
+      "content": "Assalamu Alaikum Md Evon,\n\nI have transferred ৳1.00 to your account ledger.\n\nReference: Peer-to-peer associate balance transfer\nDate: 2026-09-29\nTransfer ID: xfer-mumctth1i1rfhl",
+      "timestamp": "2026-09-29T07:28:02.677Z",
+      "read": true,
+      "priority": "normal",
+      "category": "payment",
+      "isEdited": false
+    },
+    {
+      "id": "msg-mumcvhvpg5yzfp",
+      "senderRole": "associate",
+      "senderId": "assoc-mul3hktxgydoqo",
+      "senderName": "Habibur Rahman",
+      "receiverId": "assoc-mumcndfvu8fh9x",
+      "receiverName": "Md Evon",
+      "associateId": "assoc-mumcndfvu8fh9x",
+      "subject": "💸 Balance Transfer Received: ৳1.00",
+      "content": "Assalamu Alaikum Md Evon,\n\nI have transferred ৳1.00 to your account ledger.\n\nReference: Peer-to-peer associate balance transfer\nDate: 2026-09-29\nTransfer ID: xfer-mumcvhvpkzng9f",
+      "timestamp": "2026-09-29T07:29:20.965Z",
+      "read": true,
+      "priority": "normal",
+      "category": "payment",
+      "isEdited": false
+    },
+    {
+      "id": "msg-mumcwxtkfhddn3",
+      "senderRole": "associate",
+      "senderId": "assoc-mumcndfvu8fh9x",
+      "senderName": "Md Evon",
+      "receiverId": "admin",
+      "receiverName": "Administrator",
+      "associateId": "assoc-mumcndfvu8fh9x",
+      "subject": "Hi",
+      "content": "Hi.....",
+      "timestamp": "2026-09-29T07:30:28.280Z",
+      "read": true,
+      "priority": "normal",
+      "category": "general",
+      "isEdited": false
+    },
+    {
+      "id": "msg-mumcx53q8fduqy",
+      "senderRole": "admin",
+      "senderId": "admin",
+      "senderName": "Administrator",
+      "receiverId": "assoc-mumcndfvu8fh9x",
+      "receiverName": "Md Evon",
+      "associateId": "assoc-mumcndfvu8fh9x",
+      "content": "pk",
+      "timestamp": "2026-09-29T07:30:37.718Z",
+      "read": true,
+      "priority": "normal",
+      "category": "general",
+      "isEdited": false
+    },
+    {
+      "id": "msg-mumd2n9yvpxwtp",
+      "senderRole": "associate",
+      "senderId": "assoc-mumcndfvu8fh9x",
+      "senderName": "Md Evon",
+      "receiverId": "assoc-mul3hktxgydoqo",
+      "receiverName": "Habibur Rahman",
+      "associateId": "assoc-mul3hktxgydoqo",
+      "subject": "💸 Balance Transfer Received: ৳128.00",
+      "content": "Assalamu Alaikum Habibur Rahman,\n\nI have transferred ৳128.00 to your account ledger.\n\nReference: Peer-to-peer associate balance transfer\nDate: 2026-09-29\nTransfer ID: xfer-mumd2n9y9aonl1",
+      "timestamp": "2026-09-29T07:34:54.551Z",
+      "read": true,
+      "priority": "normal",
+      "category": "payment",
+      "isEdited": false
     }
   ],
   "contacts": [
@@ -1090,7 +1562,7 @@
           "directorName": "Engr. Md. Rafiqul Alam",
           "designation": "Managing Director & CEO",
           "salary": 90000,
-          "salaryPercentage": 45.0,
+          "salaryPercentage": 45,
           "shareAmount": 40500,
           "status": "paid",
           "paidDate": "2026-03-02",
@@ -1101,7 +1573,7 @@
           "directorName": "Engr. Tanvir Ahmed",
           "designation": "Technical Director",
           "salary": 60000,
-          "salaryPercentage": 30.0,
+          "salaryPercentage": 30,
           "shareAmount": 27000,
           "status": "paid",
           "paidDate": "2026-03-02",
@@ -1112,7 +1584,7 @@
           "directorName": "Ar. Farhana Kabir",
           "designation": "Director of Architecture & Urban Design",
           "salary": 50000,
-          "salaryPercentage": 25.0,
+          "salaryPercentage": 25,
           "shareAmount": 22500,
           "status": "paid",
           "paidDate": "2026-03-02",
